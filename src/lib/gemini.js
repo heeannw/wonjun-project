@@ -1,6 +1,46 @@
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`
 
+export async function getTrendAnalysis(logs, pbs) {
+  const logSummary = logs.slice(0, 14).map((l) =>
+    `${l.date}: ${l.total_distance_m}m, RPE ${l.rpe}, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 전완근피로 ${l.forearm_fatigue}/10`
+  ).join('\n')
+
+  const pbSummary = pbs.slice(0, 6).map((p) =>
+    `${p.event}: ${p.record_time} (${p.achieved_date})`
+  ).join('\n')
+
+  const prompt = `
+너는 수영 장거리 전문 코치야. 아래는 원준 선수(18세, 자유형 장거리, 2028 LA 올림픽 목표)의 최근 훈련 데이터야.
+
+[최근 훈련 기록 (최신순)]
+${logSummary || '기록 없음'}
+
+[주요 PB 기록]
+${pbSummary || '기록 없음'}
+
+다음 4가지를 분석해줘:
+1. **훈련 부하 분석**: 최근 거리/RPE 트렌드 — 과부하인지, 적절한지, 부족한지
+2. **컨디션 & 회복 분석**: 수면·컨디션·전완근 피로도 패턴에서 주의할 점
+3. **성장 가능성 평가**: 현재 훈련 방향이 PB 단축에 효과적인지
+4. **다음 2주 훈련 방향**: 구체적인 권고사항 2~3가지
+
+각 항목을 2~3문장으로, 전체 10~15문장 이내로 한국어로 작성해. 선수를 격려하되 냉철하게 분석해.
+`.trim()
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+    }),
+  })
+  if (!res.ok) throw new Error('Gemini API 오류')
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '분석 생성 실패'
+}
+
 export async function getTrainingFeedback(todayLog, recentLogs) {
   const recentSummary = recentLogs.slice(0, 7).map((l) =>
     `${l.date}: ${l.total_distance_m}m, RPE ${l.rpe}, 컨디션 ${l.condition_score}, 수면 ${l.sleep_hours}h, 전완근피로 ${l.forearm_fatigue}`

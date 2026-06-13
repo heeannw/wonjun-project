@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
+import { getTrendAnalysis } from '../lib/gemini'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
 } from 'recharts'
-import { Flame, Moon, Activity, Target, Trophy } from 'lucide-react'
+import { Flame, Moon, Activity, Target, Trophy, BrainCircuit, RefreshCw } from 'lucide-react'
 
 const OLYMPIC_TARGETS = {
   '자유형 400m':  { target: '3:43.00', targetSec: 223.0 },
@@ -41,6 +42,8 @@ export default function DashboardPage() {
   const [logs, setLogs] = useState([])
   const [pbs, setPbs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [trendAnalysis, setTrendAnalysis] = useState('')
+  const [analyzingTrend, setAnalyzingTrend] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -101,6 +104,19 @@ export default function DashboardPage() {
   })
 
   const daysLeft = Math.ceil((new Date('2028-07-14') - new Date()) / (1000 * 60 * 60 * 24))
+
+  const runTrendAnalysis = async () => {
+    if (logs.length === 0) return
+    setAnalyzingTrend(true)
+    try {
+      const result = await getTrendAnalysis(logs, pbs)
+      setTrendAnalysis(result)
+    } catch {
+      setTrendAnalysis('분석 중 오류가 발생했습니다.')
+    } finally {
+      setAnalyzingTrend(false)
+    }
+  }
 
   // 주요 FINA 포인트 (1500m)
   const main1500Pts = latestPbs['자유형 1500m']
@@ -232,6 +248,33 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* 종합 추세 AI 분석 */}
+      <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <BrainCircuit size={15} className="text-purple-400" />
+            <h2 className="text-sm font-semibold text-slate-300">종합 추세 AI 분석</h2>
+          </div>
+          <button
+            onClick={runTrendAnalysis}
+            disabled={analyzingTrend || logs.length === 0}
+            className="flex items-center gap-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/30 disabled:opacity-40 text-purple-300 px-3 py-1.5 rounded-lg border border-purple-500/30 transition"
+          >
+            <RefreshCw size={12} className={analyzingTrend ? 'animate-spin' : ''} />
+            {analyzingTrend ? '분석 중...' : '분석 실행'}
+          </button>
+        </div>
+        {trendAnalysis ? (
+          <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{trendAnalysis}</div>
+        ) : (
+          <p className="text-slate-600 text-sm">
+            {logs.length === 0
+              ? '훈련 일지를 먼저 입력하면 분석할 수 있습니다.'
+              : '분석 실행 버튼을 눌러 최근 훈련 추세를 분석하세요.'}
+          </p>
+        )}
       </div>
 
       {/* Recent logs */}

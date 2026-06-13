@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, Trophy, Brain, ClipboardList, CalendarDays, Swords, FileText, LogOut } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Trophy, Brain, ClipboardList, CalendarDays, Swords, FileText, Scale, LogOut } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/routines', icon: ClipboardList, label: '루틴' },
   { to: '/plan', icon: CalendarDays, label: '운동 계획' },
   { to: '/competitions', icon: Swords, label: '시합 일정' },
+  { to: '/body', icon: Scale, label: '신체 기록' },
   { to: '/report', icon: FileText, label: '월간 리포트' },
 ]
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { getCompetitionPrePlan, getCompetitionPostPlan } from '../lib/gemini'
+import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, BrainCircuit, RefreshCw } from 'lucide-react'
 
 const EVENT_OPTIONS = [
   '자유형 50m', '자유형 100m', '자유형 200m', '자유형 400m', '자유형 800m', '자유형 1500m',
@@ -29,9 +30,12 @@ function daysUntil(dateStr) {
 export default function CompetitionPage() {
   const user = useAuthStore((s) => s.user)
   const [competitions, setCompetitions] = useState([])
+  const [pbs, setPbs] = useState([])
   const [form, setForm] = useState(defaultForm)
   const [showForm, setShowForm] = useState(false)
   const [expanded, setExpanded] = useState(null)
+  const [generating, setGenerating] = useState({})
+  const [planTab, setPlanTab] = useState({})
 
   const fetchCompetitions = async () => {
     const { data } = await supabase
@@ -42,7 +46,30 @@ export default function CompetitionPage() {
     setCompetitions(data || [])
   }
 
-  useEffect(() => { fetchCompetitions() }, [])
+  const fetchPbs = async () => {
+    const { data } = await supabase.from('personal_bests').select('*').eq('user_id', user.id)
+    setPbs(data || [])
+  }
+
+  useEffect(() => { fetchCompetitions(); fetchPbs() }, [])
+
+  const generatePlan = async (competition, type) => {
+    const key = `${competition.id}-${type}`
+    setGenerating((g) => ({ ...g, [key]: true }))
+    try {
+      const text = type === 'pre'
+        ? await getCompetitionPrePlan(competition, pbs)
+        : await getCompetitionPostPlan(competition, pbs)
+      const field = type === 'pre' ? 'pre_plan' : 'post_plan'
+      await supabase.from('competitions').update({ [field]: text }).eq('id', competition.id)
+      setCompetitions((cs) => cs.map((c) => c.id === competition.id ? { ...c, [field]: text } : c))
+      setPlanTab((t) => ({ ...t, [competition.id]: type }))
+    } catch {
+      alert('플랜 생성 중 오류가 발생했습니다.')
+    } finally {
+      setGenerating((g) => ({ ...g, [key]: false }))
+    }
+  }
 
   const toggleEvent = (ev) => {
     setForm((f) => ({
@@ -236,9 +263,61 @@ export default function CompetitionPage() {
                         </div>
                       )}
                       {c.notes && <p className="text-xs text-slate-400 mt-3">{c.notes}</p>}
+
+                      {/* AI 플랜 */}
+                      <div className="mt-4 border-t border-slate-700/30 pt-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <BrainCircuit size={13} className="text-purple-400" />
+                          <span className="text-xs font-semibold text-slate-300">AI 훈련 플랜</span>
+                        </div>
+                        <div className="flex gap-2 mb-3 flex-wrap">
+                          <button
+                            onClick={() => generatePlan(c, 'pre')}
+                            disabled={generating[`${c.id}-pre`]}
+                            className="flex items-center gap-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                          >
+                            {generating[`${c.id}-pre`] ? <RefreshCw size={11} className="animate-spin" /> : <BrainCircuit size={11} />}
+                            {c.pre_plan ? '전훈 플랜 재생성' : '시합 전 2주 플랜 생성'}
+                          </button>
+                          <button
+                            onClick={() => generatePlan(c, 'post')}
+                            disabled={generating[`${c.id}-post`]}
+                            className="flex items-center gap-1.5 text-xs bg-slate-700/40 hover:bg-slate-700/60 border border-slate-600/30 text-slate-300 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                          >
+                            {generating[`${c.id}-post`] ? <RefreshCw size={11} className="animate-spin" /> : <BrainCircuit size={11} />}
+                            {c.post_plan ? '후훈 플랜 재생성' : '시합 후 1주 플랜 생성'}
+                          </button>
+                        </div>
+                        {(c.pre_plan || c.post_plan) && (
+                          <div>
+                            <div className="flex gap-1 mb-2">
+                              {c.pre_plan && (
+                                <button
+                                  onClick={() => setPlanTab((t) => ({ ...t, [c.id]: 'pre' }))}
+                                  className={`text-xs px-3 py-1 rounded-md transition ${(planTab[c.id] ?? 'pre') === 'pre' ? 'bg-purple-600/30 text-purple-300' : 'text-slate-500 hover:text-slate-300'}`}
+                                >
+                                  시합 전 2주
+                                </button>
+                              )}
+                              {c.post_plan && (
+                                <button
+                                  onClick={() => setPlanTab((t) => ({ ...t, [c.id]: 'post' }))}
+                                  className={`text-xs px-3 py-1 rounded-md transition ${planTab[c.id] === 'post' ? 'bg-slate-600/40 text-slate-300' : 'text-slate-500 hover:text-slate-300'}`}
+                                >
+                                  시합 후 1주
+                                </button>
+                              )}
+                            </div>
+                            <div className="bg-[#0f1117] rounded-lg p-3 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                              {(planTab[c.id] ?? 'pre') === 'pre' ? c.pre_plan : c.post_plan}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       <button
                         onClick={() => handleDelete(c.id)}
-                        className="mt-3 text-xs text-red-500/60 hover:text-red-400 transition flex items-center gap-1"
+                        className="mt-4 text-xs text-red-500/60 hover:text-red-400 transition flex items-center gap-1"
                       >
                         <Trash2 size={11} /> 삭제
                       </button>

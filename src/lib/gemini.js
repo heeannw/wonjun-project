@@ -84,3 +84,97 @@ ${recentSummary || '기록 없음'}
   const data = await res.json()
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '피드백 생성 실패'
 }
+
+export async function getCompetitionPrePlan(competition, pbs) {
+  const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
+  const events = competition.events?.join(', ') || '미정'
+  const daysUntil = Math.ceil((new Date(competition.start_date) - new Date()) / (1000 * 60 * 60 * 24))
+
+  const prompt = `
+너는 수영 장거리 전문 코치야. 원준 선수(18세, 자유형 장거리, 2028 LA 올림픽 목표)의 시합 전 2주 훈련 플랜을 짜줘.
+
+[시합 정보]
+대회명: ${competition.name}
+시합일: ${competition.start_date} (${daysUntil}일 후)
+출전 종목: ${events}
+풀 사이즈: ${competition.pool_type}
+
+[현재 PB]
+${pbSummary || '기록 없음'}
+
+시합 2주 전부터 당일까지 주차별 훈련 방향을 작성해줘.
+
+형식:
+**D-14 ~ D-8 (1주차)**
+- 훈련 방향 (2~3줄)
+
+**D-7 ~ D-2 (2주차 테이퍼)**
+- 훈련 방향 (2~3줄)
+
+**D-1 (전날)**
+- 준비 사항 (1~2줄)
+
+**당일 워밍업**
+- 권장 루틴 (1~2줄)
+
+각 구간을 구체적이고 실용적으로, 거리/강도 수치 포함해서 한국어로 작성해.
+`.trim()
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 900, temperature: 0.7 },
+    }),
+  })
+  if (!res.ok) throw new Error('Gemini API 오류')
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '플랜 생성 실패'
+}
+
+export async function getCompetitionPostPlan(competition, pbs) {
+  const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
+  const events = competition.events?.join(', ') || '미정'
+
+  const prompt = `
+너는 수영 장거리 전문 코치야. 원준 선수(18세, 자유형 장거리, 2028 LA 올림픽 목표)의 시합 후 1주 회복 플랜을 짜줘.
+
+[시합 정보]
+대회명: ${competition.name}
+시합일: ${competition.start_date}
+출전 종목: ${events}
+
+[현재 PB]
+${pbSummary || '기록 없음'}
+
+시합 직후부터 1주일간 회복 및 재충전 플랜을 작성해줘.
+
+형식:
+**D+1 ~ D+2 (즉시 회복)**
+- 내용 (2줄)
+
+**D+3 ~ D+5 (적극적 회복)**
+- 내용 (2줄)
+
+**D+6 ~ D+7 (훈련 복귀)**
+- 내용 (2줄)
+
+**심리적 회복 포인트**
+- 내용 (1~2줄)
+
+구체적이고 실용적으로, 한국어로 작성해.
+`.trim()
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 700, temperature: 0.7 },
+    }),
+  })
+  if (!res.ok) throw new Error('Gemini API 오류')
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '플랜 생성 실패'
+}

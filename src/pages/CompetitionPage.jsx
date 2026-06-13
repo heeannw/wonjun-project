@@ -41,6 +41,8 @@ export default function CompetitionPage() {
   const [addingResultFor, setAddingResultFor] = useState(null)
   const [evaluating, setEvaluating] = useState({})
   const [evaluation, setEvaluation] = useState({}) // { competitionId: text }
+  const [planTab, setPlanTab] = useState({}) // { competitionId: 'pre' | 'post' }
+  const [histEvent, setHistEvent] = useState('')
 
   const fetchAll = async () => {
     const [compRes, pbsRes, goalsRes] = await Promise.all([
@@ -618,10 +620,10 @@ export default function CompetitionPage() {
         const compMap = {}
         competitions.forEach(c => { compMap[c.id] = c })
 
-        const [histEvent, setHistEvent] = useState(eventSet[0] || '')
+        const activeHistEvent = histEvent || eventSet[0] || ''
 
         const histData = allResults
-          .filter(r => r.event === histEvent && r.record_time)
+          .filter(r => r.event === activeHistEvent && r.record_time)
           .map(r => ({
             name: compMap[r.competition_id]?.name?.slice(0, 8) || '-',
             date: compMap[r.competition_id]?.start_date || '',
@@ -647,7 +649,7 @@ export default function CompetitionPage() {
                   <div className="flex flex-wrap gap-2">
                     {eventSet.map(ev => (
                       <button key={ev} onClick={() => setHistEvent(ev)}
-                        className={`text-xs px-3 py-1.5 rounded-lg border transition ${histEvent === ev ? 'bg-orange-600/30 border-orange-500/40 text-orange-300' : 'border-slate-700 text-slate-500 hover:text-white'}`}>
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition ${activeHistEvent === ev ? 'bg-orange-600/30 border-orange-500/40 text-orange-300' : 'border-slate-700 text-slate-500 hover:text-white'}`}>
                         {ev}
                       </button>
                     ))}
@@ -675,7 +677,7 @@ export default function CompetitionPage() {
                     {/* 기록 추이 그래프 */}
                     {histData.length >= 2 && (
                       <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
-                        <h2 className="text-sm font-semibold text-slate-300 mb-4">{histEvent} 대회별 기록 추이</h2>
+                        <h2 className="text-sm font-semibold text-slate-300 mb-4">{activeHistEvent} 대회별 기록 추이</h2>
                         <ResponsiveContainer width="100%" height={200}>
                           <LineChart data={histData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />

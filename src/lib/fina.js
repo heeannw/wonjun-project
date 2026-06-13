@@ -26,6 +26,7 @@ const WORLD_RECORDS = {
 }
 
 export function timeToSeconds(timeStr) {
+  if (!timeStr) return 0
   // "3:49.49" 또는 "15:13.36" 형식
   const parts = timeStr.split(':')
   if (parts.length === 2) {

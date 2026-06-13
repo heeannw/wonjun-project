@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
-import { getTrendAnalysis } from '../lib/gemini'
+import { getMonthlyReportAnalysis } from '../lib/gemini'
 import { useProfileStore } from '../store/profileStore'
 import { Printer, BrainCircuit, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -22,6 +22,10 @@ export default function ReportPage() {
   const [logs, setLogs] = useState([])
   const [pbs, setPbs] = useState([])
   const [mentalLogs, setMentalLogs] = useState([])
+  const [bodyRecords, setBodyRecords] = useState([])
+  const [strengthRecords, setStrengthRecords] = useState([])
+  const [competitions, setCompetitions] = useState([])
+  const [competitionResults, setCompetitionResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [aiSummary, setAiSummary] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
@@ -30,14 +34,25 @@ export default function ReportPage() {
     setLoading(true)
     setAiSummary('')
     const { start, end } = getMonthRange(year, month)
-    const [logsRes, pbsRes, mentalRes] = await Promise.all([
+    const [logsRes, pbsRes, mentalRes, bodyRes, strengthRes, competitionsRes] = await Promise.all([
       supabase.from('training_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
       supabase.from('personal_bests').select('*').eq('user_id', user.id),
-      supabase.from('mental_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
+      supabase.from('mental_journals').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
+      supabase.from('body_records').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
+      supabase.from('strength_records').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
+      supabase.from('competitions').select('*').eq('user_id', user.id).lte('start_date', end).or(`end_date.gte.${start},end_date.is.null`).order('start_date'),
     ])
+    const compIds = competitionsRes.data?.map((c) => c.id) || []
+    const resultsRes = compIds.length
+      ? await supabase.from('competition_results').select('*').eq('user_id', user.id).in('competition_id', compIds)
+      : { data: [] }
     setLogs(logsRes.data || [])
     setPbs(pbsRes.data || [])
     setMentalLogs(mentalRes.data || [])
+    setBodyRecords(bodyRes.data || [])
+    setStrengthRecords(strengthRes.data || [])
+    setCompetitions(competitionsRes.data || [])
+    setCompetitionResults(resultsRes.data || [])
     setLoading(false)
   }
 
@@ -58,6 +73,7 @@ export default function ReportPage() {
   const avgRpe = trainDays ? (logs.reduce((s, l) => s + (l.rpe || 0), 0) / trainDays).toFixed(1) : '-'
   const avgSleep = trainDays ? (logs.reduce((s, l) => s + (l.sleep_hours || 0), 0) / trainDays).toFixed(1) : '-'
   const avgCondition = trainDays ? (logs.reduce((s, l) => s + (l.condition_score || 0), 0) / trainDays).toFixed(1) : '-'
+  const avgFatigue = trainDays ? (logs.reduce((s, l) => s + (l.forearm_fatigue || 0), 0) / trainDays).toFixed(1) : '-'
 
   // 이번 달 PB 갱신 기록
   const { start: mStart, end: mEnd } = getMonthRange(year, month)
@@ -71,11 +87,32 @@ export default function ReportPage() {
     }
   })
   const mainEvents = ['자유형 400m', '자유형 800m', '자유형 1500m', '개인혼영 400m', '자유형 200m', '배영 100m']
+  const latestBody = bodyRecords[bodyRecords.length - 1]
+  const firstBody = bodyRecords[0]
+  const weightChange = latestBody && firstBody && latestBody.id !== firstBody.id
+    ? (latestBody.weight - firstBody.weight).toFixed(1)
+    : null
+  const emotionCounts = mentalLogs.reduce((acc, log) => {
+    acc[log.emotion] = (acc[log.emotion] || 0) + 1
+    return acc
+  }, {})
+  const topEmotion = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]
 
   const runAiSummary = async () => {
     setAnalyzing(true)
     try {
-      const result = await getTrendAnalysis(logs, Object.values(latestPbMap), profile)
+      const result = await getMonthlyReportAnalysis({
+        year,
+        month,
+        logs,
+        monthPbs,
+        bodyRecords,
+        mentalLogs,
+        strengthRecords,
+        competitions,
+        competitionResults,
+        latestPbs: Object.values(latestPbMap),
+      }, profile)
       setAiSummary(result)
     } catch (e) {
       setAiSummary(`분석 오류: ${e.message}`)
@@ -104,7 +141,7 @@ export default function ReportPage() {
             className="flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-sm px-4 py-2 rounded-lg transition disabled:opacity-40"
           >
             {analyzing ? <RefreshCw size={14} className="animate-spin" /> : <BrainCircuit size={14} />}
-            AI 총평 생성
+            상세 결과서 생성
           </button>
           <button
             onClick={() => window.print()}
@@ -136,13 +173,14 @@ export default function ReportPage() {
               {trainDays === 0 ? (
                 <p className="text-slate-500 text-sm">이번 달 훈련 기록이 없습니다.</p>
               ) : (
-                <div className="grid grid-cols-5 gap-4">
+                <div className="grid grid-cols-6 gap-4">
                   {[
                     { label: '훈련일수', value: `${trainDays}일` },
                     { label: '총 거리', value: `${(totalDist / 1000).toFixed(1)}km` },
                     { label: '평균 운동 강도', value: avgRpe },
                     { label: '평균 수면', value: `${avgSleep}h` },
                     { label: '평균 컨디션', value: `${avgCondition}/10` },
+                    { label: '평균 신체 피로', value: `${avgFatigue}/10` },
                   ].map(({ label, value }) => (
                     <div key={label} className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-xl p-4 text-center">
                       <p className="text-xs text-slate-500 print:text-gray-500 mb-1">{label}</p>
@@ -184,6 +222,88 @@ export default function ReportPage() {
               </div>
             )}
 
+            {/* 이달 PB 변화 */}
+            <div>
+              <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">이달 PB 변화</h2>
+              {monthPbs.length === 0 ? (
+                <p className="text-slate-500 text-sm">이번 달 새 PB 기록은 없습니다.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {monthPbs.map((pb) => (
+                    <div key={pb.id} className="bg-yellow-500/10 print:bg-yellow-50 print:border print:border-yellow-200 rounded-lg px-4 py-3">
+                      <p className="text-xs text-yellow-400 print:text-yellow-700 mb-1">{pb.achieved_date}</p>
+                      <p className="text-sm text-slate-300 print:text-gray-700">{pb.event}</p>
+                      <p className="text-xl font-bold text-white print:text-gray-900">{pb.record_time}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 신체 및 회복 상태 */}
+            <div>
+              <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">신체 상태와 회복</h2>
+              <div className="grid grid-cols-4 gap-4">
+                {[
+                  { label: '현재 체중', value: latestBody ? `${latestBody.weight}kg` : '-' },
+                  { label: '체중 변화', value: weightChange !== null ? `${parseFloat(weightChange) > 0 ? '+' : ''}${weightChange}kg` : '-' },
+                  { label: '체지방률', value: latestBody?.body_fat ? `${latestBody.body_fat}%` : '-' },
+                  { label: '신체 기록', value: `${bodyRecords.length}회` },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-xl p-4 text-center">
+                    <p className="text-xs text-slate-500 print:text-gray-500 mb-1">{label}</p>
+                    <p className="text-lg font-bold text-white print:text-gray-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 근력 및 시합 */}
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">근력 기록</h2>
+                {strengthRecords.length === 0 ? (
+                  <p className="text-slate-500 text-sm">이번 달 근력 기록이 없습니다.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {strengthRecords.slice(-6).map((r) => (
+                      <div key={r.id} className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-lg px-3 py-2 text-sm">
+                        <span className="text-slate-500 print:text-gray-500 mr-2">{r.date}</span>
+                        <span className="text-slate-300 print:text-gray-700">{r.exercise}</span>
+                        <span className="text-slate-500 print:text-gray-500 ml-2">
+                          {r.weight ? `${r.weight}kg ` : ''}{r.reps ? `${r.reps}회 ` : ''}{r.sets ? `${r.sets}세트` : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">시합 및 결과</h2>
+                {competitions.length === 0 ? (
+                  <p className="text-slate-500 text-sm">이번 달 시합 일정이 없습니다.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {competitions.map((c) => {
+                      const results = competitionResults.filter((r) => r.competition_id === c.id)
+                      return (
+                        <div key={c.id} className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-lg px-3 py-2 text-sm">
+                          <p className="text-slate-300 print:text-gray-700 font-medium">{c.name}</p>
+                          <p className="text-xs text-slate-500 print:text-gray-500">{c.start_date} ~ {c.end_date || c.start_date}</p>
+                          {results.length > 0 && (
+                            <p className="text-xs text-slate-400 print:text-gray-600 mt-1">
+                              {results.map((r) => `${r.event} ${r.record_time || '-'}`).join(' / ')}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* 현재 PB */}
             <div>
               <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">현재 PB 기록</h2>
@@ -210,11 +330,18 @@ export default function ReportPage() {
             {mentalLogs.length > 0 && (
               <div>
                 <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">멘탈 일지 ({mentalLogs.length}건)</h2>
+                {topEmotion && (
+                  <p className="text-sm text-slate-400 print:text-gray-600 mb-3">
+                    가장 자주 기록된 감정: <span className="text-white print:text-gray-900 font-semibold">{topEmotion[0]}</span> ({topEmotion[1]}회)
+                  </p>
+                )}
                 <div className="space-y-2">
                   {mentalLogs.map(m => (
                     <div key={m.id} className="flex gap-4 text-sm border-b border-slate-700/20 print:border-gray-100 pb-2">
                       <span className="text-slate-500 print:text-gray-400 w-24 shrink-0">{m.date}</span>
-                      <span className="text-slate-300 print:text-gray-700 line-clamp-2">{m.content}</span>
+                      <span className="text-slate-300 print:text-gray-700 line-clamp-2">
+                        {m.emotion} {m.emotion_note || ''} · 집중: {m.todays_focus || '-'} · 개선: {m.improve_point || '-'}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -224,7 +351,7 @@ export default function ReportPage() {
             {/* AI 총평 */}
             {aiSummary && (
               <div>
-                <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">AI 코치 총평</h2>
+                <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">월간 종합 분석 결과서</h2>
                 <div className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-lg p-4 text-sm text-slate-300 print:text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {aiSummary}
                 </div>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { useProfileStore } from '../store/profileStore'
+import { getMentalFeedback } from '../lib/gemini'
+import { Plus, ChevronDown, ChevronUp, Bot } from 'lucide-react'
 
 const EMOTIONS = [
   { icon: '😤', label: '집중' },
@@ -25,10 +27,13 @@ const defaultForm = {
 
 export default function MentalPage() {
   const user = useAuthStore((s) => s.user)
+  const profile = useProfileStore((s) => s.profile)
   const [journals, setJournals] = useState([])
   const [form, setForm] = useState(defaultForm)
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
+  const [feedbacks, setFeedbacks] = useState({})
+  const [generatingId, setGeneratingId] = useState(null)
 
   const fetch = async () => {
     const { data } = await supabase
@@ -37,7 +42,13 @@ export default function MentalPage() {
       .eq('user_id', user.id)
       .order('date', { ascending: false })
       .limit(30)
-    setJournals(data || [])
+    const rows = data || []
+    setJournals(rows)
+    const feedbackMap = {}
+    rows.forEach((row) => {
+      if (row.ai_feedback) feedbackMap[row.id] = row.ai_feedback
+    })
+    setFeedbacks(feedbackMap)
   }
 
   useEffect(() => { fetch() }, [])
@@ -49,10 +60,31 @@ export default function MentalPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    await supabase.from('mental_journals').insert({ ...form, user_id: user.id })
+    const { data: inserted, error } = await supabase
+      .from('mental_journals')
+      .insert({ ...form, user_id: user.id })
+      .select()
+      .single()
+    if (error) {
+      alert(error.message || '멘탈 일지 저장 중 오류가 발생했습니다.')
+      return
+    }
+
     setForm(defaultForm)
     setShowForm(false)
-    fetch()
+    setExpandedId(inserted.id)
+    setGeneratingId(inserted.id)
+
+    try {
+      const feedback = await getMentalFeedback(inserted, journals, profile)
+      setFeedbacks((prev) => ({ ...prev, [inserted.id]: feedback }))
+      await supabase.from('mental_journals').update({ ai_feedback: feedback }).eq('id', inserted.id)
+    } catch (e) {
+      setFeedbacks((prev) => ({ ...prev, [inserted.id]: e.message || 'AI 조언 생성 중 오류가 발생했습니다.' }))
+    } finally {
+      setGeneratingId(null)
+      fetch()
+    }
   }
 
   return (
@@ -173,6 +205,36 @@ export default function MentalPage() {
                   {j.good_point && <div><span className="text-green-400 font-medium">잘한 점: </span><span className="text-slate-300">{j.good_point}</span></div>}
                   {j.improve_point && <div><span className="text-orange-400 font-medium">개선: </span><span className="text-slate-300">{j.improve_point}</span></div>}
                   {j.message_to_tomorrow && <div><span className="text-purple-400 font-medium">내일에게: </span><span className="text-slate-300 italic">"{j.message_to_tomorrow}"</span></div>}
+                  <div className="mt-3 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Bot size={13} className="text-blue-400" />
+                      <span className="text-xs text-blue-400 font-medium">AI 멘탈 코칭</span>
+                    </div>
+                    {generatingId === j.id ? (
+                      <p className="text-xs text-slate-400 animate-pulse">조언 생성 중...</p>
+                    ) : feedbacks[j.id] ? (
+                      <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{feedbacks[j.id]}</p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setGeneratingId(j.id)
+                          try {
+                            const feedback = await getMentalFeedback(j, journals.filter((row) => row.id !== j.id), profile)
+                            setFeedbacks((prev) => ({ ...prev, [j.id]: feedback }))
+                            await supabase.from('mental_journals').update({ ai_feedback: feedback }).eq('id', j.id)
+                          } catch (e) {
+                            setFeedbacks((prev) => ({ ...prev, [j.id]: e.message || 'AI 조언 생성 중 오류가 발생했습니다.' }))
+                          } finally {
+                            setGeneratingId(null)
+                          }
+                        }}
+                        className="text-xs text-blue-300 hover:text-blue-200 transition"
+                      >
+                        조언 생성
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

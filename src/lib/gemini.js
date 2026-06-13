@@ -222,6 +222,133 @@ ${extra.competitionSummary || '기록 없음'}
   return callGemini(prompt, 600)
 }
 
+export async function getMentalFeedback(journal, recentJournals = [], profile) {
+  const c = ctx(profile)
+  const recentSummary = recentJournals.slice(0, 7).map((j) =>
+    `${j.date}: 감정 ${j.emotion}, 목표 "${j.final_goal || '-'}", 집중 "${j.todays_focus || '-'}", 개선 "${j.improve_point || '-'}"`
+  ).join('\n')
+
+  const prompt = `
+너는 엘리트 수영 선수의 멘탈 루틴을 돕는 코치다. 아래 멘탈 일지를 보고 짧은 피드백을 작성한다.${c.notes}
+
+[선수 정보]
+${c.intro}
+
+[오늘 멘탈 일지]
+날짜: ${journal.date}
+최종 목표: ${journal.final_goal || '-'}
+오늘 집중한 것: ${journal.todays_focus || '-'}
+잘한 점: ${journal.good_point || '-'}
+더 해야 할 점: ${journal.improve_point || '-'}
+감정: ${journal.emotion || '-'} ${journal.emotion_note || ''}
+내일의 나에게: ${journal.message_to_tomorrow || '-'}
+
+[최근 멘탈 흐름]
+${recentSummary || '기록 없음'}
+
+작성 형식:
+1. 오늘 멘탈 상태 판단: 1문장
+2. 목표 선명도 또는 감정 흐름: 1문장
+3. 내일 실천할 행동: 1문장
+
+마크다운 문법은 쓰지 마.
+진단, 치료, 의학적 표현은 쓰지 마.
+과한 응원보다 차분하고 구체적인 코칭 톤으로 작성해.
+불안/피로가 반복되면 훈련 강도 조절이나 코치와의 공유를 권한다.
+`.trim()
+
+  return callGemini(prompt, 500)
+}
+
+export async function getMonthlyReportAnalysis(reportData, profile) {
+  const c = ctx(profile)
+  const {
+    year,
+    month,
+    logs = [],
+    monthPbs = [],
+    bodyRecords = [],
+    mentalLogs = [],
+    strengthRecords = [],
+    competitions = [],
+    competitionResults = [],
+    latestPbs = [],
+  } = reportData
+
+  const trainingSummary = logs.map((l) =>
+    `${l.date}: ${l.main_event || '-'}, ${l.total_distance_m || 0}m, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}/10${l.notes ? `, 메모: ${l.notes}` : ''}`
+  ).join('\n')
+  const pbSummary = monthPbs.map((p) => `${p.achieved_date}: ${p.event} ${p.record_time}`).join('\n')
+  const latestPbSummary = latestPbs.map((p) => `${p.event}: ${p.record_time} (${p.achieved_date})`).join('\n')
+  const bodySummary = bodyRecords.map((r) => `${r.date}: 체중 ${r.weight}kg${r.body_fat ? `, 체지방 ${r.body_fat}%` : ''}${r.notes ? `, ${r.notes}` : ''}`).join('\n')
+  const mentalSummary = mentalLogs.map((m) =>
+    `${m.date}: 감정 ${m.emotion || '-'} ${m.emotion_note || ''}, 목표 "${m.final_goal || '-'}", 집중 "${m.todays_focus || '-'}", 개선 "${m.improve_point || '-'}"`
+  ).join('\n')
+  const strengthSummary = strengthRecords.map((r) =>
+    `${r.date}: ${r.exercise}${r.weight ? ` ${r.weight}kg` : ''}${r.reps ? ` ${r.reps}회` : ''}${r.sets ? ` ${r.sets}세트` : ''}${r.notes ? `, ${r.notes}` : ''}`
+  ).join('\n')
+  const competitionSummary = competitions.map((comp) => {
+    const results = competitionResults
+      .filter((r) => r.competition_id === comp.id)
+      .map((r) => `${r.event} ${r.record_time || '-'}${r.rank ? ` ${r.rank}위` : ''}`)
+      .join(' / ')
+    return `${comp.start_date}~${comp.end_date || comp.start_date}: ${comp.name} (${comp.events?.join(', ') || '종목 미정'})${results ? `, 결과: ${results}` : ''}`
+  }).join('\n')
+
+  const prompt = `
+너는 엘리트 수영 선수의 월간 데이터 리포트를 작성하는 퍼포먼스 분석가다. ${c.intro}의 ${year}년 ${month}월 데이터를 바탕으로 깊이 있는 결과서를 작성한다.${c.notes}
+
+[이번 달 훈련 기록]
+${trainingSummary || '기록 없음'}
+
+[이번 달 PB 갱신]
+${pbSummary || '갱신 없음'}
+
+[현재 주요 PB]
+${latestPbSummary || '기록 없음'}
+
+[신체 기록]
+${bodySummary || '기록 없음'}
+
+[멘탈 일지]
+${mentalSummary || '기록 없음'}
+
+[근력 기록]
+${strengthSummary || '기록 없음'}
+
+[시합 일정 및 결과]
+${competitionSummary || '기록 없음'}
+
+아래 형식으로 한국어 결과서를 작성해.
+마크다운 문법(**, ###, -, *)은 쓰지 마.
+선수에게 직접 말 거는 문장보다 결과서 문체로 써.
+근거 없는 단정은 피하고, 데이터가 부족한 항목은 부족하다고 명시해.
+
+1. 이달의 핵심 요약
+훈련량, 컨디션, 기록 변화, 멘탈 흐름을 묶어 4~5문장으로 요약한다.
+
+2. 훈련 수행 평가
+훈련 빈도, 총 거리, 운동 강도, 수면, 신체 피로를 종합해 5~7문장으로 분석한다.
+
+3. PB 및 경기력 변화
+이번 달 PB 갱신 여부와 현재 주요 PB를 연결해 경기력 변화 가능성을 4~6문장으로 분석한다.
+
+4. 신체 상태와 회복
+체중, 체지방, 수면, 컨디션, 신체 피로, 근력 기록을 연결해 4~6문장으로 분석한다.
+
+5. 멘탈 상태
+감정, 목표 선명도, 집중 내용, 개선 과제를 바탕으로 4~6문장으로 분석한다.
+
+6. 다음 달 훈련 방향
+다음 달에 우선할 훈련 방향 4가지를 구체적으로 제안한다.
+
+7. 종합 결론
+이달 데이터가 2028 LA 목표에 어떤 의미인지 3~4문장으로 정리한다.
+`.trim()
+
+  return callGemini(prompt, 1400)
+}
+
 export async function getCompetitionPrePlan(competition, pbs, profile) {
   const c = ctx(profile)
   const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')

@@ -43,6 +43,20 @@ function getPlanTitle(plan) {
   return plan?.custom_note?.split('\n').find(Boolean)?.trim() || '일정'
 }
 
+function getDateRange(startDate, endDate) {
+  const dates = []
+  const start = new Date(startDate)
+  const end = new Date(endDate || startDate)
+  const current = new Date(start)
+
+  while (current <= end) {
+    dates.push(toISODate(current))
+    current.setDate(current.getDate() + 1)
+  }
+
+  return dates
+}
+
 export default function PlanPage() {
   const user = useAuthStore((s) => s.user)
   const [baseDate, setBaseDate] = useState(new Date().toISOString().slice(0, 10))
@@ -76,7 +90,7 @@ export default function PlanPage() {
         .select('id, name, start_date, end_date, events, location')
         .eq('user_id', user.id)
         .lte('start_date', rangeEnd)
-        .gte('start_date', rangeStart),
+        .or(`end_date.gte.${rangeStart},end_date.is.null`),
     ])
 
     const planMap = {}
@@ -85,9 +99,11 @@ export default function PlanPage() {
     logsRes.data?.forEach((log) => { logMap[log.date] = log })
     const competitionMap = {}
     competitionsRes.data?.forEach((competition) => {
-      const key = competition.start_date
-      if (!competitionMap[key]) competitionMap[key] = []
-      competitionMap[key].push(competition)
+      getDateRange(competition.start_date, competition.end_date).forEach((date) => {
+        if (date < rangeStart || date > rangeEnd) return
+        if (!competitionMap[date]) competitionMap[date] = []
+        competitionMap[date].push(competition)
+      })
     })
     setPlans(planMap)
     setLogs(logMap)
@@ -220,7 +236,10 @@ export default function PlanPage() {
                 <div className="space-y-1">
                   {dayCompetitions.map((competition) => (
                     <div key={competition.id} className="rounded-md bg-red-500/10 border border-red-500/25 px-2 py-1 shadow-sm">
-                      <p className="text-xs font-medium text-red-200 truncate">🚩 {competition.name}</p>
+                      <p className="text-xs font-medium text-red-200 truncate">
+                        🚩 {competition.name}
+                        {date === competition.start_date ? ' 시작' : date === (competition.end_date || competition.start_date) ? ' 종료' : ''}
+                      </p>
                     </div>
                   ))}
                   {plan?.custom_note && (

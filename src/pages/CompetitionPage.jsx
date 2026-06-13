@@ -294,31 +294,37 @@ export default function CompetitionPage() {
               <div>
                 <label className="block text-xs text-slate-500 mb-1">순위</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={resultForm.rank}
-                  onChange={(e) => setResultForm((f) => ({ ...f, rank: e.target.value }))}
-                  placeholder="예: 3"
+                  onChange={(e) => setResultForm((f) => ({ ...f, rank: e.target.value.replace(/\D/g, '') }))}
+                  placeholder="예: 3 또는 12"
                   className="w-full bg-[#1a1d27] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-500 mb-1">라운드</label>
-                <input
-                  type="text"
+                <label className="block text-xs text-slate-500 mb-1">구분</label>
+                <select
                   value={resultForm.heat}
                   onChange={(e) => setResultForm((f) => ({ ...f, heat: e.target.value }))}
-                  placeholder="예: 예선 / 결선"
                   className="w-full bg-[#1a1d27] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none"
-                />
+                >
+                  <option value="">선택 안함</option>
+                  <option value="예선">예선</option>
+                  <option value="준결승">준결승</option>
+                  <option value="결승">결승</option>
+                  <option value="결선">결선</option>
+                  <option value="기타">기타</option>
+                </select>
               </div>
               <div className="col-span-2">
                 <label className="block text-xs text-slate-500 mb-1">메모</label>
-                <input
-                  type="text"
+                <textarea
                   value={resultForm.notes}
                   onChange={(e) => setResultForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="예: 전반 페이스 좋았음"
-                  className="w-full bg-[#1a1d27] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none"
+                  placeholder="예: 전반 페이스 좋았음, 턴 개선 필요"
+                  rows={2}
+                  className="w-full bg-[#1a1d27] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none resize-none"
                 />
               </div>
             </div>

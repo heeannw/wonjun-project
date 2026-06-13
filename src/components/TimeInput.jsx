@@ -1,11 +1,3 @@
-/**
- * 수영 기록 자동 포맷 입력 컴포넌트
- * 숫자만 입력하면 오른쪽부터 채워지며 : 와 . 이 자동으로 삽입됨
- * 4자리: SS.XX (예: 24.73)
- * 5자리: M:SS.XX (예: 7:24.50)
- * 6자리: MM:SS.XX (예: 15:21.26)
- */
-
 function formatTime(digits) {
   if (digits.length === 0) return ''
   if (digits.length <= 2) return digits
@@ -16,6 +8,13 @@ function formatTime(digits) {
 }
 
 export default function TimeInput({ value, onChange, placeholder, className, onKeyDown, required }) {
+  // onBeforeInput으로 숫자 외 모든 입력(한국어 IME 포함) 차단
+  const handleBeforeInput = (e) => {
+    if (e.data && !/^\d+$/.test(e.data)) {
+      e.preventDefault()
+    }
+  }
+
   const handleChange = (e) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 6)
     onChange(formatTime(raw))
@@ -24,9 +23,8 @@ export default function TimeInput({ value, onChange, placeholder, className, onK
   const handleKeyDown = (e) => {
     if (e.key === 'Backspace') {
       e.preventDefault()
-      const digits = value.replace(/\D/g, '')
-      const newDigits = digits.slice(0, -1)
-      onChange(formatTime(newDigits))
+      const digits = (value || '').replace(/\D/g, '')
+      onChange(formatTime(digits.slice(0, -1)))
       return
     }
     onKeyDown?.(e)
@@ -35,13 +33,15 @@ export default function TimeInput({ value, onChange, placeholder, className, onK
   return (
     <input
       type="text"
+      inputMode="numeric"
+      autoComplete="off"
       value={value}
       onChange={handleChange}
+      onBeforeInput={handleBeforeInput}
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
       className={className}
       required={required}
-      inputMode="numeric"
     />
   )
 }

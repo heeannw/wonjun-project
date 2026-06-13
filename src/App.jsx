@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage'
 import TrainingPage from './pages/TrainingPage'
 import RecordsPage from './pages/RecordsPage'
 import MentalPage from './pages/MentalPage'
+import RoutinePage from './pages/RoutinePage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuthStore()
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/training" element={<PrivateRoute><TrainingPage /></PrivateRoute>} />
         <Route path="/records" element={<PrivateRoute><RecordsPage /></PrivateRoute>} />
         <Route path="/mental" element={<PrivateRoute><MentalPage /></PrivateRoute>} />
+        <Route path="/routines" element={<PrivateRoute><RoutinePage /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

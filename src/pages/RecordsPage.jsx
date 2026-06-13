@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { calcFinaPoints } from '../lib/fina'
-import { Plus, Trophy, ChevronDown, ChevronUp, Target, Pencil } from 'lucide-react'
-import { timeToSeconds } from '../lib/fina'
+import { calcFinaPoints, timeToSeconds } from '../lib/fina'
+import { Plus, Trophy, ChevronDown, ChevronUp, Target, Pencil, TrendingDown } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const EVENT_GROUPS = [
   {
@@ -119,11 +119,19 @@ export default function RecordsPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // 종목별 최신 PB
-  const latestPb = (event) => records.find((r) => r.event === event) || null
+  // 종목별 실제 PB (가장 빠른 기록)
+  const latestPb = (event) => {
+    const eventRecords = records.filter((r) => r.event === event)
+    if (!eventRecords.length) return null
+    return eventRecords.reduce((best, r) =>
+      timeToSeconds(r.record_time) < timeToSeconds(best.record_time) ? r : best
+    )
+  }
 
-  // 종목별 히스토리
-  const history = (event) => records.filter((r) => r.event === event)
+  // 종목별 히스토리 (날짜 오름차순)
+  const history = (event) =>
+    records.filter((r) => r.event === event)
+      .sort((a, b) => new Date(a.achieved_date) - new Date(b.achieved_date))
 
   return (
     <div>
@@ -373,20 +381,71 @@ export default function RecordsPage() {
                     </tbody>
                   </table>
 
-                  {/* 히스토리 */}
+                  {/* 성장 그래프 + 히스토리 */}
                   {group.events.some((ev) => history(ev).length > 1) && (
-                    <div className="px-5 py-3 border-t border-slate-700/30">
-                      <p className="text-xs text-slate-500 mb-2">기록 히스토리</p>
-                      <div className="space-y-1">
-                        {group.events.flatMap((ev) =>
-                          history(ev).slice(1).map((r) => (
-                            <div key={r.id} className="flex gap-4 text-xs text-slate-600">
-                              <span>{r.achieved_date}</span>
-                              <span>{ev}</span>
-                              <span>{r.record_time}</span>
-                              <span>{r.notes}</span>
+                    <div className="px-5 py-4 border-t border-slate-700/30">
+                      <div className="flex items-center gap-2 mb-3">
+                        <TrendingDown size={13} className="text-green-400" />
+                        <p className="text-xs text-slate-400 font-medium">기록 성장 그래프</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        {group.events.filter((ev) => history(ev).length > 1).map((ev) => {
+                          const hist = history(ev)
+                          const chartData = hist.map((r) => ({
+                            date: r.achieved_date.slice(2),
+                            초: Math.round(timeToSeconds(r.record_time) * 100) / 100,
+                            기록: r.record_time,
+                          }))
+                          const improvement = (
+                            timeToSeconds(hist[0].record_time) - timeToSeconds(hist[hist.length - 1].record_time)
+                          ).toFixed(2)
+                          return (
+                            <div key={ev} className="bg-[#0f1117] rounded-lg p-3">
+                              <div className="flex justify-between items-center mb-2">
+                                <p className="text-xs text-slate-300 font-medium">{ev}</p>
+                                <span className="text-xs text-green-400 font-semibold">▼{improvement}초</span>
+                              </div>
+                              <ResponsiveContainer width="100%" height={100}>
+                                <LineChart data={chartData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
+                                  <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
+                                  <YAxis
+                                    domain={['auto', 'auto']}
+                                    tick={{ fill: '#64748b', fontSize: 9 }}
+                                    reversed
+                                    tickFormatter={(v) => {
+                                      const m = Math.floor(v / 60)
+                                      const s = (v % 60).toFixed(0).padStart(2, '0')
+                                      return m > 0 ? `${m}:${s}` : `${v}s`
+                                    }}
+                                  />
+                                  <Tooltip
+                                    contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 6, fontSize: 11 }}
+                                    formatter={(_, __, props) => [props.payload.기록, '기록']}
+                                  />
+                                  <Line type="monotone" dataKey="초" stroke="#22c55e" strokeWidth={2} dot={{ fill: '#22c55e', r: 3 }} />
+                                </LineChart>
+                              </ResponsiveContainer>
                             </div>
-                          ))
+                          )
+                        })}
+                      </div>
+                      {/* 텍스트 히스토리 */}
+                      <div className="mt-3 space-y-1">
+                        {group.events.flatMap((ev) =>
+                          history(ev).map((r) => {
+                            const pb = latestPb(ev)
+                            const isBest = pb?.id === r.id
+                            return (
+                              <div key={r.id} className={`flex gap-4 text-xs ${isBest ? 'text-white' : 'text-slate-600'}`}>
+                                <span>{r.achieved_date}</span>
+                                <span>{ev}</span>
+                                <span className={isBest ? 'font-bold text-yellow-400' : ''}>{r.record_time}</span>
+                                <span>{r.notes}</span>
+                                {isBest && <span className="text-yellow-400">← PB</span>}
+                              </div>
+                            )
+                          })
                         )}
                       </div>
                     </div>

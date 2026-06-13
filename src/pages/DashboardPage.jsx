@@ -99,17 +99,14 @@ export default function DashboardPage() {
       기록: p.record_time,
     }))
 
-  // Gap: 목표 기록이 있으면 목표 기준, 없으면 올림픽 기준
-  const gapData = Object.entries(OLYMPIC_TARGETS).map(([event, { target: olympicTarget, targetSec: olympicTargetSec }]) => {
+  // Gap: 개인 목표 설정한 종목만 표시
+  const gapData = Object.entries(goalsMap).map(([event, goal]) => {
     const pb = latestPbs[event]
-    const goal = goalsMap[event]
-    const target = goal?.target_time ?? olympicTarget
-    const targetSec = goal ? timeToSeconds(goal.target_time) : olympicTargetSec
+    const targetSec = timeToSeconds(goal.target_time)
     const pbSec = pb ? timeToSeconds(pb.record_time) : null
     const gapSec = pbSec ? pbSec - targetSec : null
     const progress = pbSec ? Math.max(0, Math.min(98, (1 - gapSec / pbSec * 8) * 100)) : 0
-    const isGoal = !!goal
-    return { event, target, pb: pb?.record_time, pbSec, gapSec, progress, isGoal, deadline: goal?.deadline }
+    return { event, target: goal.target_time, pb: pb?.record_time, pbSec, gapSec, progress, isGoal: true, deadline: goal.deadline }
   })
 
   const daysLeft = Math.ceil((new Date('2028-07-14') - new Date()) / (1000 * 60 * 60 * 24))

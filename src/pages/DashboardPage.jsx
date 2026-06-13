@@ -150,7 +150,7 @@ export default function DashboardPage() {
     if (logs.length === 0) return
     setAnalyzingTrend(true)
     try {
-      const result = await getTrendAnalysis(logs, pbs)
+      const result = await getTrendAnalysis(logs, Object.values(latestPbs))
       setTrendAnalysis(result)
     } catch {
       setTrendAnalysis('분석 중 오류가 발생했습니다.')

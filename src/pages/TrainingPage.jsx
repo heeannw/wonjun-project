@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { getTrainingFeedback } from '../lib/gemini'
+import { useProfileStore } from '../store/profileStore'
 import { Plus, ChevronDown, ChevronUp, Bot } from 'lucide-react'
 
 const METRIC_CONFIG = {
@@ -82,6 +83,7 @@ function SliderField({ label, name, value, min, max, onChange, color = 'blue' })
 
 export default function TrainingPage() {
   const user = useAuthStore((s) => s.user)
+  const profile = useProfileStore((s) => s.profile)
   const [logs, setLogs] = useState([])
   const [form, setForm] = useState(defaultForm)
   const [showForm, setShowForm] = useState(false)
@@ -153,7 +155,7 @@ export default function TrainingPage() {
       setExpandedId(inserted.id)
       try {
         const recentLogs = logs.slice(0, 7)
-        const feedbackText = await getTrainingFeedback(inserted, recentLogs)
+        const feedbackText = await getTrainingFeedback(inserted, recentLogs, profile)
         await supabase.from('training_feedback').insert({
           user_id: user.id,
           log_id: inserted.id,

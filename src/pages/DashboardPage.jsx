@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import { getTrendAnalysis, getGrowthSimulation } from '../lib/gemini'
+import { useProfileStore } from '../store/profileStore'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -39,6 +40,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
+  const profile = useProfileStore((s) => s.profile)
   const [logs, setLogs] = useState([])
   const [pbs, setPbs] = useState([])
   const [goalsMap, setGoalsMap] = useState({})
@@ -137,7 +139,7 @@ export default function DashboardPage() {
   const runSimulation = async () => {
     setSimulating(true)
     try {
-      const result = await getGrowthSimulation(pbs, logs)
+      const result = await getGrowthSimulation(pbs, logs, profile)
       setSimulation(result)
     } catch (e) {
       setSimulation(`시뮬레이션 오류: ${e.message}`)
@@ -150,7 +152,7 @@ export default function DashboardPage() {
     if (logs.length === 0) return
     setAnalyzingTrend(true)
     try {
-      const result = await getTrendAnalysis(logs, Object.values(latestPbs))
+      const result = await getTrendAnalysis(logs, Object.values(latestPbs), profile)
       setTrendAnalysis(result)
     } catch {
       setTrendAnalysis('분석 중 오류가 발생했습니다.')

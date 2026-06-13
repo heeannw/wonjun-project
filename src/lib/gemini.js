@@ -1,6 +1,36 @@
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const CURRENT_AGE = new Date().getFullYear() - 2008
 const API_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${API_KEY}`
+
+function calcAge(birthDate) {
+  if (!birthDate) return new Date().getFullYear() - 2008
+  const today = new Date()
+  const birth = new Date(birthDate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+  return age
+}
+
+function calcAgeAt(birthDate, targetDate) {
+  const birth = new Date(birthDate || '2008-03-04')
+  const target = new Date(targetDate)
+  let age = target.getFullYear() - birth.getFullYear()
+  const m = target.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && target.getDate() < birth.getDate())) age--
+  return age
+}
+
+function ctx(profile) {
+  const age = calcAge(profile?.birth_date)
+  const olympicAge = calcAgeAt(profile?.birth_date || '2008-03-04', '2028-07-14')
+  const name = profile?.name || '원준'
+  const team = profile?.team ? ` (${profile.team})` : ''
+  const coach = profile?.coach ? `, 코치: ${profile.coach}` : ''
+  const events = profile?.main_events?.length ? profile.main_events.join(', ') : '자유형 장거리'
+  const goal = profile?.goal || '2028 LA 올림픽 출전'
+  const notes = profile?.notes ? `\n참고: ${profile.notes}` : ''
+  return { age, olympicAge, name, intro: `${name} 선수(만 ${age}세${team}, 전문: ${events}, 목표: ${goal}${coach})`, notes }
+}
 
 async function callGemini(prompt, maxTokens = 800) {
   const res = await fetch(API_URL, {
@@ -20,17 +50,15 @@ async function callGemini(prompt, maxTokens = 800) {
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '생성 실패'
 }
 
-export async function getTrendAnalysis(logs, pbs) {
+export async function getTrendAnalysis(logs, pbs, profile) {
+  const c = ctx(profile)
   const logSummary = logs.slice(0, 14).map((l) =>
     `${l.date}: ${l.total_distance_m}m, RPE ${l.rpe}, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 전완근피로 ${l.forearm_fatigue}/10`
   ).join('\n')
-
-  const pbSummary = pbs.slice(0, 6).map((p) =>
-    `${p.event}: ${p.record_time} (${p.achieved_date})`
-  ).join('\n')
+  const pbSummary = pbs.slice(0, 6).map((p) => `${p.event}: ${p.record_time} (${p.achieved_date})`).join('\n')
 
   const prompt = `
-너는 수영 장거리 전문 코치야. 아래는 원준 선수(${CURRENT_AGE}세, 자유형 장거리, 2028 LA 올림픽 목표)의 최근 훈련 데이터야.
+너는 수영 장거리 전문 코치야. 아래는 ${c.intro}의 최근 훈련 데이터야.${c.notes}
 
 [최근 훈련 기록 (최신순)]
 ${logSummary || '기록 없음'}
@@ -50,13 +78,14 @@ ${pbSummary || '기록 없음'}
   return callGemini(prompt, 800)
 }
 
-export async function getTrainingFeedback(todayLog, recentLogs) {
+export async function getTrainingFeedback(todayLog, recentLogs, profile) {
+  const c = ctx(profile)
   const recentSummary = recentLogs.slice(0, 7).map((l) =>
     `${l.date}: ${l.total_distance_m}m, RPE ${l.rpe}, 컨디션 ${l.condition_score}, 수면 ${l.sleep_hours}h, 전완근피로 ${l.forearm_fatigue}`
   ).join('\n')
 
   const prompt = `
-너는 수영 장거리 전문 코치야. 아래는 원준 선수(${CURRENT_AGE}세, 자유형 장거리 전문, 2028 LA 올림픽 목표)의 훈련 데이터야.
+너는 수영 장거리 전문 코치야. 아래는 ${c.intro}의 훈련 데이터야.${c.notes}
 
 [오늘 훈련]
 날짜: ${todayLog.date}
@@ -83,14 +112,15 @@ ${recentSummary || '기록 없음'}
   return callGemini(prompt, 600)
 }
 
-export async function getCompetitionPrePlan(competition, pbs) {
+export async function getCompetitionPrePlan(competition, pbs, profile) {
+  const c = ctx(profile)
   const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
   const events = competition.events?.join(', ') || '미정'
   const daysUntil = Math.ceil((new Date(competition.start_date) - new Date()) / (1000 * 60 * 60 * 24))
   const daysLabel = daysUntil >= 0 ? `${daysUntil}일 후` : `${Math.abs(daysUntil)}일 전 종료`
 
   const prompt = `
-너는 수영 장거리 전문 코치야. 원준 선수(${CURRENT_AGE}세, 자유형 장거리, 2028 LA 올림픽 목표)의 시합 전 2주 훈련 플랜을 짜줘.
+너는 수영 장거리 전문 코치야. ${c.intro}의 시합 전 2주 훈련 플랜을 짜줘.${c.notes}
 
 [시합 정보]
 대회명: ${competition.name}
@@ -122,12 +152,13 @@ ${pbSummary || '기록 없음'}
   return callGemini(prompt, 900)
 }
 
-export async function getCompetitionPostPlan(competition, pbs) {
+export async function getCompetitionPostPlan(competition, pbs, profile) {
+  const c = ctx(profile)
   const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
   const events = competition.events?.join(', ') || '미정'
 
   const prompt = `
-너는 수영 장거리 전문 코치야. 원준 선수(${CURRENT_AGE}세, 자유형 장거리, 2028 LA 올림픽 목표)의 시합 후 1주 회복 플랜을 짜줘.
+너는 수영 장거리 전문 코치야. ${c.intro}의 시합 후 1주 회복 플랜을 짜줘.${c.notes}
 
 [시합 정보]
 대회명: ${competition.name}
@@ -158,13 +189,15 @@ ${pbSummary || '기록 없음'}
   return callGemini(prompt, 700)
 }
 
-export async function getGrowthSimulation(pbs, logs) {
+export async function getGrowthSimulation(pbs, logs, profile) {
+  const c = ctx(profile)
   const pbSummary = pbs.slice(0, 10).map((p) => `${p.event}: ${p.record_time} (${p.achieved_date})`).join('\n')
   const recentAvgDist = logs.length
     ? Math.round(logs.slice(0, 14).reduce((s, l) => s + (l.total_distance_m || 0), 0) / Math.min(logs.length, 14))
     : 0
+
   const prompt = `
-너는 수영 데이터 분석 전문가야. 원준 선수(${CURRENT_AGE}세, 자유형 장거리, 2028 LA 올림픽 목표)의 현재 데이터를 바탕으로 2026~2028 성장 시나리오를 시뮬레이션해줘.
+너는 수영 데이터 분석 전문가야. ${c.intro}의 현재 데이터를 바탕으로 2026~2028 성장 시나리오를 시뮬레이션해줘.${c.notes}
 
 [현재 PB 기록]
 ${pbSummary || '없음'}
@@ -173,8 +206,8 @@ ${pbSummary || '없음'}
 ${recentAvgDist}m/일
 
 [참고]
-- 2028 LA 올림픽: 2028년 7월 14일
-- 현재 나이: ${CURRENT_AGE}세 (2008년생, 올림픽 당시 20세)
+- 2028 LA 올림픽: 2028년 7월 14일 (당시 만 ${c.olympicAge}세)
+- 현재 만 ${c.age}세
 - 웨이트 트레이닝 미수행 상태 (성장 여지 최대)
 - 2025 세계주니어 자유형 1500m 6위 입상
 
@@ -193,16 +226,16 @@ ${recentAvgDist}m/일
   return callGemini(prompt, 900)
 }
 
-export async function getCompetitionEvaluation(competition, results, pbs, goals) {
+export async function getCompetitionEvaluation(competition, results, pbs, goals, profile) {
+  const c = ctx(profile)
   const resultSummary = results.map((r) =>
     `${r.event}: ${r.record_time ?? '기록없음'} / ${r.rank ? r.rank + '위' : '순위없음'}${r.heat ? ` (${r.heat})` : ''}${r.notes ? ` — ${r.notes}` : ''}`
   ).join('\n')
-
   const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
   const goalSummary = Object.entries(goals).map(([ev, g]) => `${ev}: 목표 ${g.target_time}`).join('\n') || '목표 없음'
 
   const prompt = `
-너는 수영 장거리 전문 코치야. 원준 선수(${CURRENT_AGE}세, 자유형 장거리, 2028 LA 올림픽 목표)의 시합 결과를 분석해줘.
+너는 수영 장거리 전문 코치야. ${c.intro}의 시합 결과를 분석해줘.${c.notes}
 
 [시합 정보]
 대회명: ${competition.name}

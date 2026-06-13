@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { useAuthStore } from './store/authStore'
+import { useProfileStore } from './store/profileStore'
 import LoginPage from './pages/LoginPage'
 import Layout from './components/Layout'
 import DashboardPage from './pages/DashboardPage'
@@ -15,6 +16,7 @@ import ReportPage from './pages/ReportPage'
 import BodyPage from './pages/BodyPage'
 import PacePage from './pages/PacePage'
 import StrengthPage from './pages/StrengthPage'
+import ProfilePage from './pages/ProfilePage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuthStore()
@@ -25,14 +27,19 @@ function PrivateRoute({ children }) {
 
 export default function App() {
   const { setUser, setLoading } = useAuthStore()
+  const { fetchProfile } = useProfileStore()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
+      const u = data.session?.user ?? null
+      setUser(u)
+      if (u) fetchProfile(u.id)
       setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      const u = session?.user ?? null
+      setUser(u)
+      if (u) fetchProfile(u.id)
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -52,6 +59,7 @@ export default function App() {
         <Route path="/report" element={<PrivateRoute><ReportPage /></PrivateRoute>} />
         <Route path="/pace" element={<PrivateRoute><PacePage /></PrivateRoute>} />
         <Route path="/strength" element={<PrivateRoute><StrengthPage /></PrivateRoute>} />
+        <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

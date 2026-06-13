@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { getCompetitionPrePlan, getCompetitionPostPlan, getCompetitionEvaluation } from '../lib/gemini'
+import { useProfileStore } from '../store/profileStore'
 import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, BrainCircuit, RefreshCw, ClipboardList, BarChart2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { timeToSeconds } from '../lib/fina'
@@ -26,6 +27,7 @@ function daysUntil(dateStr) {
 
 export default function CompetitionPage() {
   const user = useAuthStore((s) => s.user)
+  const profile = useProfileStore((s) => s.profile)
   const [competitions, setCompetitions] = useState([])
   const [pbs, setPbs] = useState([])
   const [goalsMap, setGoalsMap] = useState({})
@@ -121,8 +123,8 @@ export default function CompetitionPage() {
     setGenerating((g) => ({ ...g, [key]: true }))
     try {
       const text = type === 'pre'
-        ? await getCompetitionPrePlan(competition, latestPbs)
-        : await getCompetitionPostPlan(competition, latestPbs)
+        ? await getCompetitionPrePlan(competition, latestPbs, profile)
+        : await getCompetitionPostPlan(competition, latestPbs, profile)
       const field = type === 'pre' ? 'pre_plan' : 'post_plan'
       await supabase.from('competitions').update({ [field]: text }).eq('id', competition.id)
       setCompetitions((cs) => cs.map((c) => c.id === competition.id ? { ...c, [field]: text } : c))
@@ -161,7 +163,7 @@ export default function CompetitionPage() {
     setEvaluating((e) => ({ ...e, [cid]: true }))
     try {
       const compResults = results[cid] || []
-      const text = await getCompetitionEvaluation(competition, compResults, latestPbs, goalsMap)
+      const text = await getCompetitionEvaluation(competition, compResults, latestPbs, goalsMap, profile)
       // save to first result row
       if (compResults[0]) {
         await supabase.from('competition_results').update({ ai_evaluation: text }).eq('id', compResults[0].id)

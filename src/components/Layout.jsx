@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, Trophy, Brain, ClipboardList, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Trophy, Brain, ClipboardList, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell, UserCircle } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/pace', icon: Timer, label: '페이스 계산기' },
   { to: '/strength', icon: Dumbbell, label: '근력 기록' },
   { to: '/report', icon: FileText, label: '월간 리포트' },
+  { to: '/profile', icon: UserCircle, label: '선수 정보' },
 ]
 
 export default function Layout({ children }) {

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import { getTrendAnalysis } from '../lib/gemini'
+import { useProfileStore } from '../store/profileStore'
 import { Printer, BrainCircuit, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 
 function getMonthRange(year, month) {
@@ -14,6 +15,7 @@ function getMonthRange(year, month) {
 
 export default function ReportPage() {
   const user = useAuthStore((s) => s.user)
+  const profile = useProfileStore((s) => s.profile)
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
@@ -73,7 +75,7 @@ export default function ReportPage() {
   const runAiSummary = async () => {
     setAnalyzing(true)
     try {
-      const result = await getTrendAnalysis(logs, Object.values(latestPbMap))
+      const result = await getTrendAnalysis(logs, Object.values(latestPbMap), profile)
       setAiSummary(result)
     } catch (e) {
       setAiSummary(`분석 오류: ${e.message}`)

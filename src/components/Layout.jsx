@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, Trophy, Brain, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell, UserCircle, Moon, Sun } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Trophy, Brain, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell, UserCircle, Moon, Sun, ClipboardCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 const navItems = [
@@ -15,6 +15,7 @@ const navItems = [
   { to: '/strength', icon: Dumbbell, label: '근력 기록' },
   { to: '/report', icon: FileText, label: '월간 리포트' },
   { to: '/profile', icon: UserCircle, label: '선수 정보' },
+  { to: '/coach', icon: ClipboardCheck, label: '코치 보드' },
 ]
 
 export default function Layout({ children }) {

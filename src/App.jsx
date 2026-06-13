@@ -16,6 +16,7 @@ import BodyPage from './pages/BodyPage'
 import PacePage from './pages/PacePage'
 import StrengthPage from './pages/StrengthPage'
 import ProfilePage from './pages/ProfilePage'
+import CoachPage from './pages/CoachPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuthStore()
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="/pace" element={<PrivateRoute><PacePage /></PrivateRoute>} />
         <Route path="/strength" element={<PrivateRoute><StrengthPage /></PrivateRoute>} />
         <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+        <Route path="/coach" element={<PrivateRoute><CoachPage /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

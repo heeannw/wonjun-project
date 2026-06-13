@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { User, ClipboardCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 export default function LoginPage() {
@@ -7,6 +8,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loginType, setLoginType] = useState('athlete')
   const signIn = useAuthStore((s) => s.signIn)
   const navigate = useNavigate()
 
@@ -16,7 +18,8 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signIn(email, password)
-      navigate('/')
+      localStorage.setItem('wonjun-login-type', loginType)
+      navigate(loginType === 'coach' ? '/coach' : '/')
     } catch (err) {
       setError('이메일 또는 비밀번호가 올바르지 않습니다.')
     } finally {
@@ -34,6 +37,35 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-2xl p-6 shadow-xl border border-slate-700/50">
+          <div className="grid grid-cols-2 gap-2 mb-5 bg-[#0f1117] border border-slate-700/50 rounded-xl p-1">
+            {[
+              { id: 'athlete', label: '선수 로그인', icon: User },
+              { id: 'coach', label: '코치 로그인', icon: ClipboardCheck },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setLoginType(id)}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  loginType === id
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/40'
+                }`}
+              >
+                <Icon size={14} />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-5 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+            <p className="text-xs text-blue-300 leading-relaxed">
+              {loginType === 'athlete'
+                ? '선수 계정으로 훈련 기록을 입력하고 성장 흐름을 확인합니다.'
+                : '코치 계정으로 연결된 선수의 상태, 위험 신호, 코칭 체크포인트를 확인합니다.'}
+            </p>
+          </div>
+
           <div className="mb-4">
             <label className="block text-sm text-slate-400 mb-1.5">이메일</label>
             <input
@@ -66,12 +98,12 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold rounded-lg py-2.5 transition"
           >
-            {loading ? '로그인 중...' : '로그인'}
+            {loading ? '로그인 중...' : loginType === 'coach' ? '코치로 로그인' : '선수로 로그인'}
           </button>
         </form>
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          원준 선수 전용 플랫폼 · Private
+          원준 프로젝트 · Private
         </p>
       </div>
     </div>

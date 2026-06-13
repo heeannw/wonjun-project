@@ -54,6 +54,7 @@ export default function RecordsPage() {
   const [showForm, setShowForm] = useState(false)
   const [showGoalForm, setShowGoalForm] = useState(false)
   const [expandedGroup, setExpandedGroup] = useState('자유형')
+  const [showHistory, setShowHistory] = useState({})
 
   const fetchRecords = async () => {
     const { data } = await supabase
@@ -132,6 +133,14 @@ export default function RecordsPage() {
   const history = (event) =>
     records.filter((r) => r.event === event)
       .sort((a, b) => new Date(a.achieved_date) - new Date(b.achieved_date))
+
+  // 전체 종목 중 최고 FINA 포인트
+  const maxFina = Math.max(
+    ...ALL_EVENTS.map((ev) => {
+      const pb = latestPb(ev)
+      return pb ? (calcFinaPoints(ev, pb.record_time) ?? 0) : 0
+    })
+  )
 
   return (
     <div>
@@ -334,9 +343,15 @@ export default function RecordsPage() {
                             <td className="px-3 py-2.5 text-slate-500 text-xs">{pb?.notes ?? '-'}</td>
                             <td className="px-3 py-2.5">
                               {fina ? (
-                                <span className={`text-xs font-medium ${fina >= 900 ? 'text-yellow-400' : fina >= 800 ? 'text-blue-400' : 'text-slate-400'}`}>
-                                  {fina}
-                                </span>
+                                fina === maxFina ? (
+                                  <span className="text-xs font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/30">
+                                    {fina} ★
+                                  </span>
+                                ) : (
+                                  <span className={`text-xs font-medium ${fina >= 900 ? 'text-yellow-400' : fina >= 800 ? 'text-blue-400' : 'text-slate-400'}`}>
+                                    {fina}
+                                  </span>
+                                )
                               ) : <span className="text-slate-600 text-xs">-</span>}
                             </td>
                             <td className="px-3 py-2.5">
@@ -430,22 +445,33 @@ export default function RecordsPage() {
                           )
                         })}
                       </div>
-                      {/* 텍스트 히스토리 */}
-                      <div className="mt-3 space-y-1">
-                        {group.events.flatMap((ev) =>
-                          history(ev).map((r) => {
-                            const pb = latestPb(ev)
-                            const isBest = pb?.id === r.id
-                            return (
-                              <div key={r.id} className={`flex gap-4 text-xs ${isBest ? 'text-white' : 'text-slate-600'}`}>
-                                <span>{r.achieved_date}</span>
-                                <span>{ev}</span>
-                                <span className={isBest ? 'font-bold text-yellow-400' : ''}>{r.record_time}</span>
-                                <span>{r.notes}</span>
-                                {isBest && <span className="text-yellow-400">← PB</span>}
-                              </div>
-                            )
-                          })
+                      {/* 텍스트 히스토리 (토글) */}
+                      <div className="mt-3">
+                        <button
+                          onClick={() => setShowHistory((h) => ({ ...h, [group.label]: !h[group.label] }))}
+                          className="text-xs text-slate-500 hover:text-slate-300 transition flex items-center gap-1"
+                        >
+                          {showHistory[group.label] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          전체 기록 {showHistory[group.label] ? '숨기기' : '보기'}
+                        </button>
+                        {showHistory[group.label] && (
+                          <div className="mt-2 space-y-0.5">
+                            {group.events.flatMap((ev) =>
+                              history(ev).map((r) => {
+                                const pb = latestPb(ev)
+                                const isBest = pb?.id === r.id
+                                return (
+                                  <div key={r.id} className={`flex gap-4 text-xs py-0.5 ${isBest ? 'text-white' : 'text-slate-600'}`}>
+                                    <span className="w-24 shrink-0">{r.achieved_date}</span>
+                                    <span className="w-20 shrink-0">{ev}</span>
+                                    <span className={isBest ? 'font-bold text-yellow-400 w-16 shrink-0' : 'w-16 shrink-0'}>{r.record_time}</span>
+                                    <span className="text-slate-500">{r.notes}</span>
+                                    {isBest && <span className="text-yellow-400 ml-1">← PB</span>}
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

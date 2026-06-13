@@ -17,6 +17,7 @@ import PacePage from './pages/PacePage'
 import StrengthPage from './pages/StrengthPage'
 import ProfilePage from './pages/ProfilePage'
 import CoachPage from './pages/CoachPage'
+import CoachFeedbackPage from './pages/CoachFeedbackPage'
 
 function PrivateRoute({ children, audience = 'athlete' }) {
   const { user, loading, role } = useAuthStore()
@@ -68,7 +69,14 @@ export default function App() {
         <Route path="/pace" element={<PrivateRoute><PacePage /></PrivateRoute>} />
         <Route path="/strength" element={<PrivateRoute><StrengthPage /></PrivateRoute>} />
         <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+        <Route path="/coach-feedback" element={<PrivateRoute><CoachFeedbackPage /></PrivateRoute>} />
         <Route path="/coach" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />
+        <Route path="/coach/status" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />
+        <Route path="/coach/schedule" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />
+        <Route path="/coach/pb" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />
+        <Route path="/coach/race" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />
+        <Route path="/coach/feedback" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />
+        <Route path="/coach/notes" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

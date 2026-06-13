@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Timer, Calculator, ChevronDown } from 'lucide-react'
+import { Timer, Calculator, ChevronDown, BarChart2 } from 'lucide-react'
 
 const EVENTS = [
   { label: '자유형 100m', distance: 100 },
@@ -39,7 +39,123 @@ function parseTime(str) {
   return parseFloat(str)
 }
 
+function RaceAnalysis() {
+  const [event, setEvent] = useState(EVENTS[4])
+  const [frontTime, setFrontTime] = useState('')
+  const [backTime, setBackTime] = useState('')
+  const [result, setResult] = useState(null)
+
+  const analyze = () => {
+    const front = parseTime(frontTime)
+    const back = parseTime(backTime)
+    if (!front || !back) return
+    const total = front + back
+    const ratio = (back / front) * 100
+    const per100Front = front / (event.distance / 2) * 100
+    const per100Back = back / (event.distance / 2) * 100
+    const isNegative = back < front
+    const diff = Math.abs(front - back)
+    setResult({ front, back, total, ratio, per100Front, per100Back, isNegative, diff })
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50">
+          <label className="block text-xs text-slate-400 mb-2">종목</label>
+          <div className="relative">
+            <select value={event.label} onChange={(e) => { setEvent(EVENTS.find(ev => ev.label === e.target.value)); setResult(null) }}
+              className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none appearance-none">
+              {EVENTS.map(ev => <option key={ev.label} value={ev.label}>{ev.label}</option>)}
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          </div>
+        </div>
+        <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50">
+          <label className="block text-xs text-slate-400 mb-2">전반 {event.distance / 2}m</label>
+          <input type="text" value={frontTime} onChange={(e) => { setFrontTime(e.target.value); setResult(null) }}
+            placeholder="예: 7:24.50" onKeyDown={(e) => e.key === 'Enter' && analyze()}
+            className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500" />
+        </div>
+        <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50">
+          <label className="block text-xs text-slate-400 mb-2">후반 {event.distance / 2}m</label>
+          <input type="text" value={backTime} onChange={(e) => { setBackTime(e.target.value); setResult(null) }}
+            placeholder="예: 7:27.50" onKeyDown={(e) => e.key === 'Enter' && analyze()}
+            className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500" />
+        </div>
+      </div>
+
+      <button onClick={analyze} disabled={!frontTime || !backTime}
+        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-lg transition mb-6">
+        <BarChart2 size={16} /> 레이스 분석
+      </button>
+
+      {result && (
+        <div className="space-y-4">
+          {/* 총합 + 판정 */}
+          <div className={`rounded-xl p-5 border ${result.isNegative ? 'bg-green-500/10 border-green-500/30' : 'bg-orange-500/10 border-orange-500/30'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400 mb-1">최종 기록</p>
+                <p className="text-3xl font-bold text-white font-mono">{formatTime(result.total)}</p>
+              </div>
+              <div className="text-right">
+                <p className={`text-xl font-bold ${result.isNegative ? 'text-green-400' : 'text-orange-400'}`}>
+                  {result.isNegative ? '✓ 네거티브 스플릿' : '△ 포지티브 스플릿'}
+                </p>
+                <p className="text-sm text-slate-400 mt-1">
+                  전반 대비 후반 {result.isNegative ? '-' : '+'}{formatTime(result.diff)} {result.isNegative ? '빠름' : '느림'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 전/후반 비교 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50">
+              <p className="text-xs text-slate-500 mb-1">전반 {event.distance / 2}m</p>
+              <p className="text-2xl font-bold text-orange-400 font-mono">{formatTime(result.front)}</p>
+              <p className="text-xs text-slate-500 mt-2">100m 페이스: <span className="text-white">{formatTime(result.per100Front)}</span></p>
+            </div>
+            <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50">
+              <p className="text-xs text-slate-500 mb-1">후반 {event.distance / 2}m</p>
+              <p className={`text-2xl font-bold font-mono ${result.isNegative ? 'text-green-400' : 'text-red-400'}`}>{formatTime(result.back)}</p>
+              <p className="text-xs text-slate-500 mt-2">100m 페이스: <span className="text-white">{formatTime(result.per100Back)}</span></p>
+            </div>
+          </div>
+
+          {/* 페이스 유지율 */}
+          <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
+            <p className="text-xs text-slate-400 mb-3">페이스 유지율 (후반/전반 비율)</p>
+            <div className="flex items-center gap-4">
+              <p className={`text-4xl font-bold ${result.ratio <= 100.5 ? 'text-green-400' : result.ratio <= 102 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {result.ratio.toFixed(1)}%
+              </p>
+              <div className="flex-1">
+                <div className="w-full bg-slate-700/40 rounded-full h-3">
+                  <div className={`h-3 rounded-full transition-all ${result.ratio <= 100.5 ? 'bg-green-500' : result.ratio <= 102 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    style={{ width: `${Math.min(100, result.ratio - 95)}%` }} />
+                </div>
+                <div className="flex justify-between text-xs text-slate-600 mt-1">
+                  <span>이상적 (≤100%)</span><span>보통 (~102%)</span><span>후반 크랙 (≥103%)</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mt-3">
+              {result.ratio <= 100 ? '완벽한 네거티브 스플릿! 엘리트 페이싱.' :
+               result.ratio <= 101 ? '매우 훌륭한 페이스 유지. 올림픽 수준의 레이스 운영.' :
+               result.ratio <= 102 ? '준수한 페이스. 후반 집중력을 조금 더 유지하면 기록 향상 가능.' :
+               '후반 크랙 발생. 전반 페이스를 2~3% 낮추고 후반에 치고 나오는 훈련 필요.'}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PacePage() {
+  const [tab, setTab] = useState('pace')
   const [event, setEvent] = useState(EVENTS[4]) // 자유형 1500m
   const [targetTime, setTargetTime] = useState('')
   const [poolType, setPoolType] = useState('50')
@@ -81,10 +197,25 @@ export default function PacePage() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-xl font-bold text-white">페이스 계산기</h1>
-        <p className="text-slate-400 text-sm mt-0.5">목표 기록 입력 시 구간별 스플릿 자동 계산</p>
+        <p className="text-slate-400 text-sm mt-0.5">목표 기록 스플릿 계산 · 레이스 분석</p>
       </div>
+
+      {/* 탭 */}
+      <div className="flex gap-1 mb-6 bg-[#1a1d27] p-1 rounded-lg border border-slate-700/50 w-fit">
+        <button onClick={() => setTab('pace')}
+          className={`text-sm px-4 py-2 rounded-md transition font-medium ${tab === 'pace' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+          페이스 계산기
+        </button>
+        <button onClick={() => setTab('race')}
+          className={`text-sm px-4 py-2 rounded-md transition font-medium ${tab === 'race' ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+          레이스 분석
+        </button>
+      </div>
+
+      {tab === 'race' && <RaceAnalysis />}
+      {tab === 'pace' && <div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         {/* 종목 */}
@@ -243,6 +374,7 @@ export default function PacePage() {
           </div>
         </div>
       )}
+      </div>}
     </div>
   )
 }

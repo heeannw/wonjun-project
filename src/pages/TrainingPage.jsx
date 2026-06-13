@@ -4,6 +4,45 @@ import { useAuthStore } from '../store/authStore'
 import { getTrainingFeedback } from '../lib/gemini'
 import { Plus, ChevronDown, ChevronUp, Bot } from 'lucide-react'
 
+const METRIC_CONFIG = {
+  condition_score: { label: '컨디션', low: [1,3], mid: [4,6], high: [7,10], lowColor: '#ef4444', midColor: '#f59e0b', highColor: '#22c55e' },
+  rpe: { label: 'RPE', low: [1,4], mid: [5,7], high: [8,10], lowColor: '#3b82f6', midColor: '#f59e0b', highColor: '#ef4444' },
+  forearm_fatigue: { label: '전완근 피로', low: [1,3], mid: [4,6], high: [7,10], lowColor: '#22c55e', midColor: '#f59e0b', highColor: '#ef4444' },
+}
+
+function getColor(value, metric) {
+  if (value == null) return '#1e293b'
+  const cfg = METRIC_CONFIG[metric]
+  if (value <= cfg.low[1]) return cfg.lowColor
+  if (value <= cfg.mid[1]) return cfg.midColor
+  return cfg.highColor
+}
+
+function buildHeatmap(logs, metric) {
+  const logMap = {}
+  logs.forEach(l => { logMap[l.date] = l })
+  const today = new Date()
+  const todayStr = today.toISOString().slice(0, 10)
+  // Start from Monday 12 weeks ago
+  const start = new Date(today)
+  start.setDate(start.getDate() - 83)
+  const dow = start.getDay()
+  start.setDate(start.getDate() - (dow === 0 ? 6 : dow - 1))
+  const days = []
+  const cur = new Date(start)
+  while (cur.toISOString().slice(0, 10) <= todayStr) {
+    const d = cur.toISOString().slice(0, 10)
+    days.push({ date: d, value: logMap[d]?.[metric] ?? null, log: logMap[d] ?? null })
+    cur.setDate(cur.getDate() + 1)
+  }
+  // Pad to multiple of 7
+  while (days.length % 7 !== 0) days.push({ date: null, value: null, log: null })
+  // Group into weeks (columns)
+  const weeks = []
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
+  return weeks
+}
+
 const defaultForm = {
   date: new Date().toISOString().slice(0, 10),
   total_distance_m: '',
@@ -50,6 +89,8 @@ export default function TrainingPage() {
   const [expandedId, setExpandedId] = useState(null)
   const [feedbacks, setFeedbacks] = useState({})
   const [generatingFeedback, setGeneratingFeedback] = useState(false)
+  const [heatMetric, setHeatMetric] = useState('condition_score')
+  const [heatTooltip, setHeatTooltip] = useState(null)
 
   const fetchLogs = async () => {
     const { data } = await supabase
@@ -252,6 +293,63 @@ export default function TrainingPage() {
           </div>
         </form>
       )}
+
+      {/* 컨디션 히트맵 */}
+      {logs.length > 0 && (() => {
+        const weeks = buildHeatmap(logs, heatMetric)
+        const DOW = ['월', '화', '수', '목', '금', '토', '일']
+        return (
+          <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-slate-300">훈련 히트맵 (최근 12주)</h2>
+              <div className="flex gap-1">
+                {Object.entries(METRIC_CONFIG).map(([key, cfg]) => (
+                  <button key={key} onClick={() => setHeatMetric(key)}
+                    className={`text-xs px-2.5 py-1 rounded-md transition ${heatMetric === key ? 'bg-blue-600/30 text-blue-300 border border-blue-500/30' : 'text-slate-500 hover:text-slate-300'}`}>
+                    {cfg.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-1 relative">
+              {/* Day labels */}
+              <div className="flex flex-col gap-1 mr-1">
+                {DOW.map(d => <div key={d} className="h-[14px] text-[10px] text-slate-600 flex items-center">{d}</div>)}
+              </div>
+              {weeks.map((week, wi) => (
+                <div key={wi} className="flex flex-col gap-1">
+                  {week.map((day, di) => (
+                    <div
+                      key={di}
+                      className="w-[14px] h-[14px] rounded-sm cursor-pointer transition hover:opacity-80 hover:ring-1 hover:ring-white/30"
+                      style={{ backgroundColor: day.date ? getColor(day.value, heatMetric) : 'transparent' }}
+                      onMouseEnter={() => day.date && day.log && setHeatTooltip({ date: day.date, log: day.log })}
+                      onMouseLeave={() => setHeatTooltip(null)}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+            {heatTooltip && (
+              <div className="mt-3 bg-[#0f1117] rounded-lg px-3 py-2 text-xs text-slate-300 border border-slate-700/50">
+                <span className="text-slate-500 mr-2">{heatTooltip.date}</span>
+                <span className="mr-3">컨디션 <span className="text-green-400 font-semibold">{heatTooltip.log.condition_score}</span></span>
+                <span className="mr-3">RPE <span className="text-orange-400 font-semibold">{heatTooltip.log.rpe}</span></span>
+                <span>전완근 <span className="text-red-400 font-semibold">{heatTooltip.log.forearm_fatigue}</span></span>
+                {heatTooltip.log.total_distance_m && <span className="ml-3 text-blue-400">{heatTooltip.log.total_distance_m.toLocaleString()}m</span>}
+              </div>
+            )}
+            <div className="flex items-center gap-3 mt-3">
+              <span className="text-xs text-slate-600">낮음</span>
+              {[METRIC_CONFIG[heatMetric].lowColor, METRIC_CONFIG[heatMetric].midColor, METRIC_CONFIG[heatMetric].highColor].map((c, i) => (
+                <div key={i} className="w-3 h-3 rounded-sm" style={{ backgroundColor: c }} />
+              ))}
+              <span className="text-xs text-slate-600">높음</span>
+              <span className="text-xs text-slate-700 ml-2">— 회색: 휴식일</span>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Log List */}
       <div className="space-y-2">

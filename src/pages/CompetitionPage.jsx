@@ -31,7 +31,7 @@ export default function CompetitionPage() {
   const [form, setForm] = useState(defaultForm)
   const [showForm, setShowForm] = useState(false)
   const [expanded, setExpanded] = useState(null)
-  const [pageTab, setPageTab] = useState('schedule') // 'schedule' | 'plan'
+  const [pageTab, setPageTab] = useState('schedule') // 'schedule' | 'plan' | 'peak'
   const [selectedCompId, setSelectedCompId] = useState(null)
   const [generating, setGenerating] = useState({})
   const [planSubTab, setPlanSubTab] = useState('pre') // 'pre' | 'post'
@@ -379,6 +379,12 @@ export default function CompetitionPage() {
         >
           훈련 플랜
         </button>
+        <button
+          onClick={() => setPageTab('peak')}
+          className={`text-sm px-4 py-2 rounded-md transition font-medium ${pageTab === 'peak' ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}
+        >
+          피크 타이밍
+        </button>
       </div>
 
       {/* 훈련 플랜 탭 */}
@@ -478,8 +484,124 @@ export default function CompetitionPage() {
         </div>
       )}
 
+      {/* 피크 타이밍 플래너 */}
+      {pageTab === 'peak' && (() => {
+        const PHASES = [
+          { label: '기초 훈련', dFrom: 84, dTo: 56, color: 'bg-slate-500', desc: '볼륨 최대화, 유산소 기반 구축', volume: '100%' },
+          { label: '피크 볼륨', dFrom: 56, dTo: 35, color: 'bg-blue-500', desc: '고강도 인터벌, 최대 볼륨 유지', volume: '100%' },
+          { label: '강도 전환', dFrom: 35, dTo: 21, color: 'bg-purple-500', desc: '레이스 페이스 훈련 증가, 볼륨 유지', volume: '90%' },
+          { label: '테이퍼 시작', dFrom: 21, dTo: 14, color: 'bg-yellow-500', desc: '볼륨 20% 감소, 강도 유지', volume: '80%' },
+          { label: '테이퍼', dFrom: 14, dTo: 7, color: 'bg-orange-500', desc: '볼륨 50% 감소, 레이스 페이스 집중', volume: '50%' },
+          { label: '레이스 준비', dFrom: 7, dTo: 1, color: 'bg-red-500', desc: '가벼운 활성화 수영, 충분한 휴식', volume: '30%' },
+          { label: '시합 당일', dFrom: 0, dTo: 0, color: 'bg-green-500', desc: '워밍업 루틴 준수', volume: '-' },
+        ]
+
+        const today = new Date()
+
+        return (
+          <div>
+            {competitions.length === 0 ? (
+              <div className="bg-[#1a1d27] rounded-xl p-6 border border-slate-700/50 text-slate-500 text-sm">
+                먼저 시합 일정을 등록해주세요.
+              </div>
+            ) : (
+              <>
+                <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50 mb-4">
+                  <label className="block text-xs text-slate-500 mb-2">시합 선택</label>
+                  <select value={selectedCompId || ''} onChange={(e) => setSelectedCompId(e.target.value)}
+                    className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500">
+                    {competitions.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.start_date}) {daysUntil(c.start_date) >= 0 ? `D-${daysUntil(c.start_date)}` : '종료'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedComp && (() => {
+                  const raceDate = new Date(selectedComp.start_date)
+                  const dLeft = Math.ceil((raceDate - today) / (1000 * 60 * 60 * 24))
+
+                  return (
+                    <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 overflow-hidden">
+                      <div className="px-5 py-4 border-b border-slate-700/30">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-semibold">{selectedComp.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{selectedComp.start_date}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-2xl font-bold ${dLeft > 0 ? 'text-green-400' : 'text-slate-500'}`}>
+                              {dLeft > 0 ? `D-${dLeft}` : '종료'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-5 space-y-3">
+                        {PHASES.map((phase) => {
+                          const phaseStart = new Date(raceDate)
+                          phaseStart.setDate(phaseStart.getDate() - phase.dFrom)
+                          const phaseEnd = new Date(raceDate)
+                          phaseEnd.setDate(phaseEnd.getDate() - phase.dTo)
+                          const isActive = today >= phaseStart && today <= phaseEnd
+                          const isPast = today > phaseEnd
+                          const isFuture = today < phaseStart
+
+                          return (
+                            <div key={phase.label}
+                              className={`flex items-start gap-4 p-3 rounded-xl transition ${isActive ? 'bg-green-500/10 border border-green-500/30' : isPast ? 'opacity-40' : 'bg-slate-800/30'}`}>
+                              <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${phase.color}`} />
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <p className={`text-sm font-semibold ${isActive ? 'text-green-300' : isPast ? 'text-slate-500' : 'text-white'}`}>
+                                      {phase.label}
+                                      {isActive && <span className="ml-2 text-xs text-green-400 bg-green-500/20 px-1.5 py-0.5 rounded-full">현재</span>}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs text-slate-500">
+                                    <span>볼륨 <span className="text-slate-300">{phase.volume}</span></span>
+                                    <span>{phase.dFrom === 0 ? selectedComp.start_date : `D-${phase.dFrom} ~ D-${phase.dTo}`}</span>
+                                  </div>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5">{phase.desc}</p>
+                                {phase.dFrom > 0 && (
+                                  <p className="text-xs text-slate-600 mt-0.5">
+                                    {phaseStart.toISOString().slice(0,10)} ~ {phaseEnd.toISOString().slice(0,10)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {dLeft > 0 && (
+                        <div className="px-5 pb-5">
+                          <div className="bg-[#0f1117] rounded-xl p-4 border border-slate-700/30">
+                            <p className="text-xs text-slate-400 mb-2 font-semibold">테이퍼 시작까지</p>
+                            <p className="text-sm text-white">
+                              {dLeft > 21
+                                ? `${dLeft - 21}일 후 테이퍼 시작 (D-21). 지금은 ${dLeft > 56 ? '기초 훈련' : dLeft > 35 ? '피크 볼륨' : '강도 전환'} 단계.`
+                                : dLeft > 14 ? `테이퍼 시작! 볼륨을 80%로 줄이고 강도를 유지하세요.`
+                                : dLeft > 7 ? `테이퍼 진행 중. 볼륨 50%, 레이스 페이스에 집중하세요.`
+                                : `레이스 준비 단계. 몸을 가볍게 유지하고 충분히 쉬세요.`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </>
+            )}
+          </div>
+        )
+      })()}
+
       {pageTab === 'plan' && <div className="hidden" />}
-      {pageTab !== 'plan' && <div>
+      {pageTab !== 'plan' && pageTab !== 'peak' && <div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6 space-y-4">

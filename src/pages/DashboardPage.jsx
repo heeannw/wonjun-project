@@ -41,18 +41,23 @@ export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const [logs, setLogs] = useState([])
   const [pbs, setPbs] = useState([])
+  const [goalsMap, setGoalsMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [trendAnalysis, setTrendAnalysis] = useState('')
   const [analyzingTrend, setAnalyzingTrend] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
-      const [logsRes, pbsRes] = await Promise.all([
+      const [logsRes, pbsRes, goalsRes] = await Promise.all([
         supabase.from('training_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
         supabase.from('personal_bests').select('*').eq('user_id', user.id).order('achieved_date', { ascending: true }),
+        supabase.from('goals').select('*').eq('user_id', user.id),
       ])
       setLogs(logsRes.data || [])
       setPbs(pbsRes.data || [])
+      const gm = {}
+      goalsRes.data?.forEach((g) => { gm[g.event] = g })
+      setGoalsMap(gm)
       setLoading(false)
     }
     fetchData()
@@ -94,13 +99,17 @@ export default function DashboardPage() {
       기록: p.record_time,
     }))
 
-  // Olympic Gap (DB PB 기준으로 동적 계산)
-  const olympicGapData = Object.entries(OLYMPIC_TARGETS).map(([event, { target, targetSec }]) => {
+  // Gap: 목표 기록이 있으면 목표 기준, 없으면 올림픽 기준
+  const gapData = Object.entries(OLYMPIC_TARGETS).map(([event, { target: olympicTarget, targetSec: olympicTargetSec }]) => {
     const pb = latestPbs[event]
+    const goal = goalsMap[event]
+    const target = goal?.target_time ?? olympicTarget
+    const targetSec = goal ? timeToSeconds(goal.target_time) : olympicTargetSec
     const pbSec = pb ? timeToSeconds(pb.record_time) : null
     const gapSec = pbSec ? pbSec - targetSec : null
     const progress = pbSec ? Math.max(0, Math.min(98, (1 - gapSec / pbSec * 8) * 100)) : 0
-    return { event, target, pb: pb?.record_time, pbSec, gapSec, progress }
+    const isGoal = !!goal
+    return { event, target, pb: pb?.record_time, pbSec, gapSec, progress, isGoal, deadline: goal?.deadline }
   })
 
   const daysLeft = Math.ceil((new Date('2028-07-14') - new Date()) / (1000 * 60 * 60 * 24))
@@ -227,24 +236,39 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Olympic Gap */}
+      {/* Gap */}
       <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
-        <h2 className="text-sm font-semibold text-slate-300 mb-4">올림픽 기준 기록 Gap</h2>
+        <h2 className="text-sm font-semibold text-slate-300 mb-4">목표 기록 Gap</h2>
         <div className="space-y-3">
-          {olympicGapData.map(({ event, target, pb, gapSec, progress }) => (
+          {gapData.map(({ event, target, pb, gapSec, progress, isGoal, deadline }) => (
             <div key={event}>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-slate-300">{event}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-300">{event}</span>
+                  {isGoal
+                    ? <span className="text-xs text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">내 목표</span>
+                    : <span className="text-xs text-slate-600 bg-slate-700/30 px-1.5 py-0.5 rounded">올림픽</span>
+                  }
+                </div>
                 <span className="text-slate-400">
-                  {pb ? `PB ${pb} → 목표 ${target}` : `목표 ${target}`}
-                  {gapSec != null && (
+                  {pb ? `${pb} → ${target}` : `목표 ${target}`}
+                  {gapSec != null && gapSec > 0 && (
                     <span className="text-orange-400 ml-2">-{gapSec.toFixed(2)}초</span>
+                  )}
+                  {gapSec != null && gapSec <= 0 && (
+                    <span className="text-green-400 ml-2">달성!</span>
                   )}
                 </span>
               </div>
               <div className="w-full bg-slate-700/40 rounded-full h-1.5">
-                <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                <div
+                  className={`h-1.5 rounded-full transition-all ${isGoal ? 'bg-purple-500' : 'bg-blue-500'}`}
+                  style={{ width: `${progress}%` }}
+                />
               </div>
+              {deadline && (
+                <p className="text-xs text-slate-600 mt-0.5 text-right">목표일: {deadline}</p>
+              )}
             </div>
           ))}
         </div>

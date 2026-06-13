@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints } from '../lib/fina'
-import { Plus, Trophy, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trophy, ChevronDown, ChevronUp, Target, Pencil } from 'lucide-react'
+import { timeToSeconds } from '../lib/fina'
 
 const EVENT_GROUPS = [
   {
@@ -42,11 +43,16 @@ const defaultForm = {
   notes: '',
 }
 
+const defaultGoalForm = { event: '자유형 1500m', target_time: '', deadline: '', notes: '' }
+
 export default function RecordsPage() {
   const user = useAuthStore((s) => s.user)
   const [records, setRecords] = useState([])
+  const [goals, setGoals] = useState({})
   const [form, setForm] = useState(defaultForm)
+  const [goalForm, setGoalForm] = useState(defaultGoalForm)
   const [showForm, setShowForm] = useState(false)
+  const [showGoalForm, setShowGoalForm] = useState(false)
   const [expandedGroup, setExpandedGroup] = useState('자유형')
 
   const fetchRecords = async () => {
@@ -58,7 +64,14 @@ export default function RecordsPage() {
     setRecords(data || [])
   }
 
-  useEffect(() => { fetchRecords() }, [])
+  const fetchGoals = async () => {
+    const { data } = await supabase.from('goals').select('*').eq('user_id', user.id)
+    const map = {}
+    data?.forEach((g) => { map[g.event] = g })
+    setGoals(map)
+  }
+
+  useEffect(() => { fetchRecords(); fetchGoals() }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -74,6 +87,38 @@ export default function RecordsPage() {
     setRecords((r) => r.filter((x) => x.id !== id))
   }
 
+  const handleGoalSubmit = async (e) => {
+    e.preventDefault()
+    const existing = goals[goalForm.event]
+    const payload = {
+      user_id: user.id,
+      event: goalForm.event,
+      target_time: goalForm.target_time,
+      deadline: goalForm.deadline || null,
+      notes: goalForm.notes || null,
+    }
+    if (existing) {
+      await supabase.from('goals').update(payload).eq('id', existing.id)
+    } else {
+      await supabase.from('goals').insert(payload)
+    }
+    setGoalForm(defaultGoalForm)
+    setShowGoalForm(false)
+    fetchGoals()
+  }
+
+  const openGoalEdit = (event) => {
+    const existing = goals[event]
+    setGoalForm({
+      event,
+      target_time: existing?.target_time || '',
+      deadline: existing?.deadline || '',
+      notes: existing?.notes || '',
+    })
+    setShowGoalForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   // 종목별 최신 PB
   const latestPb = (event) => records.find((r) => r.event === event) || null
 
@@ -87,14 +132,82 @@ export default function RecordsPage() {
           <h1 className="text-xl font-bold text-white">PB 기록 관리</h1>
           <p className="text-slate-400 text-sm mt-0.5">종목별 개인 최고 기록</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
-        >
-          <Plus size={16} />
-          기록 추가
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowGoalForm(!showGoalForm)}
+            className="flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-sm font-semibold px-4 py-2 rounded-lg transition"
+          >
+            <Target size={16} />
+            목표 설정
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+          >
+            <Plus size={16} />
+            기록 추가
+          </button>
+        </div>
       </div>
+
+      {/* 목표 설정 폼 */}
+      {showGoalForm && (
+        <form onSubmit={handleGoalSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-purple-500/30 mb-6">
+          <h2 className="text-sm font-semibold text-purple-300 mb-4 flex items-center gap-2">
+            <Target size={14} /> 목표 기록 설정
+          </h2>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">종목</label>
+              <select
+                value={goalForm.event}
+                onChange={(e) => setGoalForm((f) => ({ ...f, event: e.target.value }))}
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+              >
+                {EVENT_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.events.map((ev) => <option key={ev}>{ev}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">목표 기록</label>
+              <input
+                type="text"
+                value={goalForm.target_time}
+                onChange={(e) => setGoalForm((f) => ({ ...f, target_time: e.target.value }))}
+                placeholder="예: 14:52.00"
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">달성 목표일 (선택)</label>
+              <input
+                type="date"
+                value={goalForm.deadline}
+                onChange={(e) => setGoalForm((f) => ({ ...f, deadline: e.target.value }))}
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">메모 (선택)</label>
+              <input
+                type="text"
+                value={goalForm.notes}
+                onChange={(e) => setGoalForm((f) => ({ ...f, notes: e.target.value }))}
+                placeholder="예: 올림픽 A기준"
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">저장</button>
+            <button type="button" onClick={() => setShowGoalForm(false)} className="bg-slate-700 hover:bg-slate-600 text-white text-sm px-5 py-2 rounded-lg transition">취소</button>
+          </div>
+        </form>
+      )}
 
       {/* 입력 폼 */}
       {showForm && (
@@ -188,6 +301,8 @@ export default function RecordsPage() {
                         <th className="text-left px-3 py-2">달성일</th>
                         <th className="text-left px-3 py-2">대회</th>
                         <th className="text-left px-3 py-2">FINA</th>
+                        <th className="text-left px-3 py-2">목표</th>
+                        <th className="text-left px-3 py-2">Gap</th>
                         <th className="text-left px-3 py-2">올림픽</th>
                         <th className="px-3 py-2"></th>
                       </tr>
@@ -195,7 +310,10 @@ export default function RecordsPage() {
                     <tbody>
                       {groupPbs.map(({ ev, pb }) => {
                         const fina = pb ? calcFinaPoints(ev, pb.record_time) : null
-                        const hist = history(ev)
+                        const goal = goals[ev]
+                        const gapSec = pb && goal
+                          ? (timeToSeconds(pb.record_time) - timeToSeconds(goal.target_time)).toFixed(2)
+                          : null
                         return (
                           <tr key={ev} className="border-b border-slate-700/20 last:border-0 hover:bg-slate-700/10">
                             <td className="px-5 py-2.5 text-slate-300">{ev.replace(group.label + ' ', '')}</td>
@@ -212,6 +330,31 @@ export default function RecordsPage() {
                                   {fina}
                                 </span>
                               ) : <span className="text-slate-600 text-xs">-</span>}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              {goal ? (
+                                <button
+                                  onClick={() => openGoalEdit(ev)}
+                                  className="flex items-center gap-1 text-purple-400 text-xs hover:text-purple-300 transition"
+                                >
+                                  {goal.target_time}
+                                  <Pencil size={10} />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => openGoalEdit(ev)}
+                                  className="text-slate-600 text-xs hover:text-purple-400 transition"
+                                >
+                                  + 목표
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              {gapSec !== null && (
+                                <span className={`text-xs font-medium ${parseFloat(gapSec) <= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                                  {parseFloat(gapSec) <= 0 ? '달성!' : `-${gapSec}s`}
+                                </span>
+                              )}
                             </td>
                             <td className="px-3 py-2.5 text-blue-400 text-xs">{OLYMPIC[ev] ?? '-'}</td>
                             <td className="px-3 py-2.5">

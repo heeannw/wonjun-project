@@ -140,7 +140,7 @@ export default function ReportPage() {
                   {[
                     { label: '훈련일수', value: `${trainDays}일` },
                     { label: '총 거리', value: `${(totalDist / 1000).toFixed(1)}km` },
-                    { label: '평균 RPE', value: avgRpe },
+                    { label: '평균 운동 강도', value: avgRpe },
                     { label: '평균 수면', value: `${avgSleep}h` },
                     { label: '평균 컨디션', value: `${avgCondition}/10` },
                   ].map(({ label, value }) => (
@@ -163,7 +163,7 @@ export default function ReportPage() {
                       <th className="text-left py-2">날짜</th>
                       <th className="text-left py-2">종목</th>
                       <th className="text-right py-2">거리</th>
-                      <th className="text-right py-2">RPE</th>
+                      <th className="text-right py-2">운동 강도</th>
                       <th className="text-right py-2">컨디션</th>
                       <th className="text-right py-2">수면</th>
                     </tr>

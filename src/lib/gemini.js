@@ -1,4 +1,4 @@
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+﻿const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 const GEMINI_MODEL = 'gemini-2.5-flash-lite'
 const API_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${API_KEY}`
 
@@ -18,6 +18,14 @@ function getGeminiErrorMessage(status, err) {
   }
 
   return message || `Gemini API 오류 ${status}`
+}
+
+function cleanGeminiText(text) {
+  return (text || '생성 실패')
+    .replace(/\*\*/g, '')
+    .replace(/^\s*[-*]\s+/gm, '• ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 function calcAge(birthDate) {
@@ -69,66 +77,136 @@ async function callGemini(prompt, maxTokens = 800) {
     throw new Error(getGeminiErrorMessage(res.status, err))
   }
   const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '생성 실패'
+  return cleanGeminiText(data.candidates?.[0]?.content?.parts?.[0]?.text)
 }
 
 export async function getTrendAnalysis(logs, pbs, profile) {
   const c = ctx(profile)
   const logSummary = logs.slice(0, 14).map((l) =>
-    `${l.date}: ${l.total_distance_m}m, RPE ${l.rpe}, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 전완근피로 ${l.forearm_fatigue}/10`
+    `${l.date}: ${l.total_distance_m}m, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}/10`
   ).join('\n')
   const pbSummary = pbs.slice(0, 6).map((p) => `${p.event}: ${p.record_time} (${p.achieved_date})`).join('\n')
 
   const prompt = `
-너는 수영 장거리 전문 코치야. 아래는 ${c.intro}의 최근 훈련 데이터야.${c.notes}
+너는 수영 장거리 데이터 분석가다. 아래는 ${c.intro}의 최근 훈련 데이터다.${c.notes}
 
-[최근 훈련 기록 (최신순)]
+[최근 훈련 기록 - 최신순]
 ${logSummary || '기록 없음'}
 
 [주요 PB 기록]
 ${pbSummary || '기록 없음'}
 
-다음 4가지를 분석해줘:
-1. **훈련 부하 분석**: 최근 거리/RPE 트렌드 — 과부하인지, 적절한지, 부족한지
-2. **컨디션 & 회복 분석**: 수면·컨디션·전완근 피로도 패턴에서 주의할 점
-3. **성장 가능성 평가**: 현재 훈련 방향이 PB 단축에 효과적인지
-4. **다음 2주 훈련 방향**: 구체적인 권고사항 2~3가지
+아래 형식 그대로 한국어로 작성해.
+마크다운 문법(**, ###, -, *)은 사용하지 마.
+선수에게 직접 말을 거는 문장, 과한 칭찬, "힘내자", "훌륭하다" 같은 표현은 쓰지 마.
+차분한 코칭 리포트 톤으로, 판단과 근거를 짧게 써.
 
-각 항목을 2~3문장으로, 전체 10~15문장 이내로 한국어로 작성해. 선수를 격려하되 냉철하게 분석해.
+1. 훈련 부하
+최근 거리와 운동 강도를 기준으로 과부하, 적정, 부족 중 하나로 판단한다. 근거를 2문장 이내로 쓴다.
+
+2. 회복 상태
+수면, 컨디션, 신체 피로도를 기준으로 회복 리스크를 판단한다. 근거를 2문장 이내로 쓴다.
+
+3. 기록 향상 가능성
+PB 기록과 최근 훈련 방향을 연결해서 현재 방향이 기록 단축에 도움이 되는지 평가한다. 2문장 이내로 쓴다.
+
+4. 다음 2주 조정안
+실행 가능한 조정안 3개를 번호 없이 한 줄씩 쓴다. 각 줄은 35자 이내로 쓴다.
+
+마지막 문장은 전체 결론 1문장만 쓴다.
 `.trim()
 
   return callGemini(prompt, 800)
 }
 
-export async function getTrainingFeedback(todayLog, recentLogs, profile) {
+function summarizeFeedbackContext(context = {}) {
+  const strengthSummary = (context.strengthRecords || []).slice(0, 6).map((r) => {
+    const load = [
+      r.weight ? `${r.weight}kg` : null,
+      r.reps ? `${r.reps}회` : null,
+      r.sets ? `${r.sets}세트` : null,
+    ].filter(Boolean).join(' ')
+    return `${r.date}: ${r.exercise}${load ? ` ${load}` : ''}${r.notes ? `, ${r.notes}` : ''}`
+  }).join('\n')
+
+  const bodySummary = (context.bodyRecords || []).slice(0, 5).map((r) =>
+    `${r.date}: 체중 ${r.weight ?? '-'}kg${r.body_fat ? `, 체지방 ${r.body_fat}%` : ''}${r.notes ? `, ${r.notes}` : ''}`
+  ).join('\n')
+
+  const resultMap = {}
+  ;(context.competitionResults || []).forEach((r) => {
+    if (!resultMap[r.competition_id]) resultMap[r.competition_id] = []
+    resultMap[r.competition_id].push(r)
+  })
+
+  const today = new Date()
+  const competitionSummary = (context.competitions || []).map((c) => {
+    const diffDays = Math.ceil((new Date(c.start_date) - today) / (1000 * 60 * 60 * 24))
+    const timing = diffDays >= 0 ? `D-${diffDays}` : `D+${Math.abs(diffDays)}`
+    const events = Array.isArray(c.events) ? c.events.join(', ') : c.events || '종목 미정'
+    const results = (resultMap[c.id] || []).slice(0, 3).map((r) =>
+      `${r.event}${r.record_time ? ` ${r.record_time}` : ''}${r.rank ? ` ${r.rank}위` : ''}`
+    ).join(' / ')
+    return `${c.start_date} ${timing}: ${c.name} (${events})${results ? `, 결과: ${results}` : ''}${c.notes ? `, 메모: ${c.notes}` : ''}`
+  }).join('\n')
+
+  return {
+    strengthSummary,
+    bodySummary,
+    competitionSummary,
+  }
+}
+
+export async function getTrainingFeedback(todayLog, recentLogs, profile, context = {}) {
   const c = ctx(profile)
+  const extra = summarizeFeedbackContext(context)
   const recentSummary = recentLogs.slice(0, 7).map((l) =>
-    `${l.date}: ${l.total_distance_m}m, RPE ${l.rpe}, 컨디션 ${l.condition_score}, 수면 ${l.sleep_hours}h, 전완근피로 ${l.forearm_fatigue}`
+    `${l.date}: ${l.total_distance_m}m, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}`
   ).join('\n')
 
   const prompt = `
-너는 수영 장거리 전문 코치야. 아래는 ${c.intro}의 훈련 데이터야.${c.notes}
+너는 수영 장거리 선수의 훈련 데이터를 분석하는 코치다. 아래 데이터를 종합해서 오늘 피드백을 작성한다.${c.notes}
 
 [오늘 훈련]
 날짜: ${todayLog.date}
 총 거리: ${todayLog.total_distance_m}m
-주 종목: ${todayLog.main_event}
-RPE(운동자각도): ${todayLog.rpe}/10
+훈련 종목: ${todayLog.main_event}
+운동 강도: ${todayLog.rpe}/10
 컨디션: ${todayLog.condition_score}/10
 수면: ${todayLog.sleep_hours}시간
-전완근 피로도: ${todayLog.forearm_fatigue}/10
+신체 피로도: ${todayLog.forearm_fatigue}/10
 ${todayLog.notes ? `메모: ${todayLog.notes}` : ''}
 
 [최근 7일 훈련 기록]
 ${recentSummary || '기록 없음'}
 
-위 데이터를 바탕으로:
-1. 오늘 훈련 상태 평가 (1~2문장)
-2. 피로/컨디션 트렌드 분석 (1문장)
-3. 내일 훈련 권고 (1문장)
+[최근 근력 기록]
+${extra.strengthSummary || '기록 없음'}
 
-총 3~4문장으로, 간결하고 구체적으로, 선수를 격려하는 톤으로 한국어로 작성해.
-전완근 피로도가 7 이상이면 반드시 경고 메시지 포함.
+[최근 신체 기록]
+${extra.bodySummary || '기록 없음'}
+
+[시합 일정 및 최근 결과]
+${extra.competitionSummary || '기록 없음'}
+
+판단 기준:
+1. 오늘 훈련량과 운동 강도
+2. 최근 7일 피로 누적과 컨디션 변화
+3. 최근 근력 훈련으로 인한 피로 가능성
+4. 체중/체지방 등 신체 변화
+5. 시합이 가까운지, 또는 시합 후 회복 기간인지
+
+작성 형식:
+1. 오늘 상태 판단: 1문장
+2. 종합 리스크: 1문장
+3. 다음 훈련 권고: 1문장
+4. 주의할 점: 1문장
+
+마크다운 문법은 쓰지 마.
+과한 칭찬이나 응원 문구는 쓰지 마.
+시합 D-14 이내면 기록 욕심보다 피로 관리와 테이퍼를 우선한다.
+시합 D+7 이내면 회복과 몸 상태 확인을 우선한다.
+신체 피로도가 7 이상이면 반드시 회복 또는 부하 조절 권고를 포함한다.
 `.trim()
 
   return callGemini(prompt, 600)
@@ -219,7 +297,7 @@ export async function getGrowthSimulation(pbs, logs, profile) {
     : 0
 
   const prompt = `
-너는 수영 데이터 분석 전문가야. ${c.intro}의 현재 데이터를 바탕으로 2026~2028 성장 시나리오를 시뮬레이션해줘.${c.notes}
+너는 수영 데이터 분석가다. ${c.intro}의 현재 데이터를 바탕으로 2026~2028 성장 시나리오를 작성한다.${c.notes}
 
 [현재 PB 기록]
 ${pbSummary || '없음'}
@@ -233,16 +311,37 @@ ${recentAvgDist}m/일
 - 웨이트 트레이닝 미수행 상태 (성장 여지 최대)
 - 2025 세계주니어 자유형 1500m 6위 입상
 
-주요 종목(자유형 400m, 800m, 1500m, 개인혼영 400m)에 대해 아래 형식으로 작성해:
+아래 형식만 사용해. 서론은 쓰지 마.
+마크다운 문법(**, ###, -, *)은 사용하지 마.
+과한 칭찬이나 응원 문구는 쓰지 마.
+기록은 가능한 한 수영 기록 형식으로 짧게 쓴다.
 
-**자유형 1500m**
-- 2026 예측: X:XX.XX (현재 대비 -X.X초)
-- 2027 예측: X:XX.XX
-- 2028 올림픽: X:XX.XX
-- 근거: (1문장)
+자유형 1500m
+2026 예측: X:XX.XX (현재 대비 -X.X초)
+2027 예측: X:XX.XX
+2028 예측: X:XX.XX
+근거: 1문장
 
-각 종목을 위 형식으로, 현실적이되 긍정적인 시나리오로 한국어로 작성해.
-마지막에 **종합 전망** 2~3문장 추가.
+자유형 800m
+2026 예측: X:XX.XX
+2027 예측: X:XX.XX
+2028 예측: X:XX.XX
+근거: 1문장
+
+자유형 400m
+2026 예측: X:XX.XX
+2027 예측: X:XX.XX
+2028 예측: X:XX.XX
+근거: 1문장
+
+개인혼영 400m
+2026 예측: X:XX.XX
+2027 예측: X:XX.XX
+2028 예측: X:XX.XX
+근거: 1문장
+
+종합 전망
+2문장 이내
 `.trim()
 
   return callGemini(prompt, 900)
@@ -284,3 +383,4 @@ ${goalSummary}
 
   return callGemini(prompt, 800)
 }
+

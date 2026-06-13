@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { ChevronLeft, ChevronRight, Plus, X, Check } from 'lucide-react'
+import RoutinePage from './RoutinePage'
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일']
 
@@ -23,6 +24,11 @@ function toDateLabel(dateStr) {
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
+function toMonthLabel(dateStr) {
+  const d = new Date(dateStr)
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월`
+}
+
 export default function PlanPage() {
   const user = useAuthStore((s) => s.user)
   const [baseDate, setBaseDate] = useState(new Date().toISOString().slice(0, 10))
@@ -31,6 +37,7 @@ export default function PlanPage() {
   const [routines, setRoutines] = useState([])
   const [editingDate, setEditingDate] = useState(null)
   const [editForm, setEditForm] = useState({ routine_id: '', custom_note: '' })
+  const [activeTab, setActiveTab] = useState('calendar')
 
   const weekDates = getWeekDates(baseDate)
 
@@ -106,49 +113,97 @@ export default function PlanPage() {
   }, 0)
   const totalDone = weekDates.reduce((s, d) => s + (logs[d]?.total_distance_m || 0), 0)
 
+  if (activeTab === 'templates') {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-bold text-white">운동 계획</h1>
+            <p className="text-slate-400 text-sm mt-0.5">주간 계획과 루틴 템플릿을 함께 관리하세요</p>
+          </div>
+          <div className="bg-[#1a1d27] border border-slate-700/50 rounded-lg p-1 flex">
+            <button
+              onClick={() => setActiveTab('calendar')}
+              className="px-3 py-1.5 rounded-md text-sm text-slate-400 hover:text-white transition"
+            >
+              주간 계획
+            </button>
+            <button className="px-3 py-1.5 rounded-md text-sm bg-blue-600 text-white transition">
+              루틴 템플릿
+            </button>
+          </div>
+        </div>
+        <RoutinePage embedded />
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-white">운동 계획 맵</h1>
-          <p className="text-slate-400 text-sm mt-0.5">주간 훈련 계획을 세우고 관리하세요</p>
+          <h1 className="text-xl font-bold text-white">운동 계획</h1>
+          <p className="text-slate-400 text-sm mt-0.5">주간 계획과 루틴 템플릿을 함께 관리하세요</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={prevWeek} className="p-2 rounded-lg bg-slate-700/40 hover:bg-slate-700 text-slate-300 transition">
-            <ChevronLeft size={16} />
+        <div className="bg-[#1a1d27] border border-slate-700/50 rounded-lg p-1 flex">
+          <button className="px-3 py-1.5 rounded-md text-sm bg-blue-600 text-white transition">
+            주간 계획
           </button>
-          <button onClick={goToday} className="px-3 py-1.5 rounded-lg bg-slate-700/40 hover:bg-slate-700 text-slate-300 text-sm transition">
-            오늘
-          </button>
-          <button onClick={nextWeek} className="p-2 rounded-lg bg-slate-700/40 hover:bg-slate-700 text-slate-300 transition">
-            <ChevronRight size={16} />
+          <button
+            onClick={() => setActiveTab('templates')}
+            className="px-3 py-1.5 rounded-md text-sm text-slate-400 hover:text-white transition"
+          >
+            루틴 템플릿
           </button>
         </div>
       </div>
 
-      {/* 주간 요약 */}
-      <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50 mb-5 flex items-center justify-between">
-        <p className="text-white font-semibold">{weekLabel}</p>
-        <div className="flex gap-6 text-sm">
+      {/* 주간 캘린더 헤더 */}
+      <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 mb-5 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-700/40 flex items-center justify-between">
           <div>
-            <span className="text-slate-500">계획 </span>
-            <span className="text-blue-400 font-semibold">{totalPlanned.toLocaleString()}m</span>
+            <p className="text-xs text-slate-500 mb-1">WEEKLY PLAN</p>
+            <div className="flex items-baseline gap-3">
+              <h2 className="text-2xl font-bold text-white">{toMonthLabel(weekDates[0])}</h2>
+              <span className="text-sm text-slate-400">{weekLabel}</span>
+            </div>
           </div>
-          <div>
-            <span className="text-slate-500">실행 </span>
-            <span className="text-green-400 font-semibold">{totalDone.toLocaleString()}m</span>
+          <div className="flex items-center gap-2">
+            <button onClick={prevWeek} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+              <ChevronLeft size={16} />
+            </button>
+            <button onClick={goToday} className="px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 text-sm transition hover:bg-blue-600/30">
+              오늘
+            </button>
+            <button onClick={nextWeek} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+              <ChevronRight size={16} />
+            </button>
           </div>
-          <div>
-            <span className="text-slate-500">달성률 </span>
-            <span className="text-white font-semibold">
-              {totalPlanned > 0 ? Math.round((totalDone / totalPlanned) * 100) : 0}%
-            </span>
+        </div>
+
+        <div className="px-5 py-3 flex items-center justify-between">
+          <div className="flex gap-6 text-sm">
+            <div>
+              <span className="text-slate-500">계획 </span>
+              <span className="text-blue-400 font-semibold">{totalPlanned.toLocaleString()}m</span>
+            </div>
+            <div>
+              <span className="text-slate-500">실행 </span>
+              <span className="text-green-400 font-semibold">{totalDone.toLocaleString()}m</span>
+            </div>
+            <div>
+              <span className="text-slate-500">달성률 </span>
+              <span className="text-white font-semibold">
+                {totalPlanned > 0 ? Math.round((totalDone / totalPlanned) * 100) : 0}%
+              </span>
+            </div>
           </div>
+          <p className="text-xs text-slate-500">날짜 카드를 눌러 계획을 추가하세요</p>
         </div>
       </div>
 
       {/* 7일 캘린더 */}
-      <div className="grid grid-cols-7 gap-2 mb-6">
+      <div className="grid grid-cols-7 gap-3 mb-6">
         {weekDates.map((date, i) => {
           const plan = plans[date]
           const log = logs[date]
@@ -160,9 +215,9 @@ export default function PlanPage() {
           return (
             <div
               key={date}
-              className={`rounded-xl border p-3 min-h-32 flex flex-col transition cursor-pointer hover:border-blue-500/50 ${
+              className={`rounded-xl border p-3 min-h-40 flex flex-col transition cursor-pointer hover:border-blue-500/50 hover:bg-slate-800/60 ${
                 isToday
-                  ? 'border-blue-500/70 bg-blue-500/5'
+                  ? 'border-blue-500/70 bg-blue-500/10 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]'
                   : 'border-slate-700/50 bg-[#1a1d27]'
               }`}
               onClick={() => openEdit(date)}
@@ -171,8 +226,9 @@ export default function PlanPage() {
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <p className={`text-xs font-medium ${isToday ? 'text-blue-400' : 'text-slate-500'}`}>{DAYS[i]}</p>
-                  <p className={`text-sm font-bold ${isToday ? 'text-blue-300' : 'text-white'}`}>{toDateLabel(date)}</p>
+                  <p className={`text-xl font-bold ${isToday ? 'text-blue-300' : 'text-white'}`}>{toDateLabel(date)}</p>
                 </div>
+                {isToday && <span className="text-[10px] text-blue-300 bg-blue-500/15 border border-blue-500/20 rounded-full px-2 py-0.5">오늘</span>}
                 {hasDone && (
                   <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center">
                     <Check size={11} className="text-green-400" />
@@ -203,7 +259,7 @@ export default function PlanPage() {
               {hasDone && (
                 <div className="mt-2 pt-2 border-t border-slate-700/30">
                   <p className="text-green-400 text-xs font-medium">{log.total_distance_m?.toLocaleString()}m 완료</p>
-                  <p className="text-slate-500 text-xs">RPE {log.rpe} · 컨디션 {log.condition_score}</p>
+                  <p className="text-slate-500 text-xs">운동 강도 {log.rpe} · 컨디션 {log.condition_score}</p>
                 </div>
               )}
             </div>

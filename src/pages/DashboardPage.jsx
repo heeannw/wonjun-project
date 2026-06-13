@@ -38,6 +38,111 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
   )
 }
 
+function normalizeAiLine(line) {
+  return line
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^\s*[-*•]\s*/, '')
+    .replace(/\*\*/g, '')
+    .trim()
+}
+
+function parseSimulationCards(text) {
+  const eventNames = ['자유형 1500m', '자유형 800m', '자유형 400m', '개인혼영 400m', '종합 전망']
+  const sections = []
+  let current = null
+
+  text
+    .replace(/\r/g, '')
+    .split('\n')
+    .map(normalizeAiLine)
+    .filter((line) => line && line !== '---')
+    .forEach((line) => {
+      const title = eventNames.find((name) => line.includes(name))
+      if (title && !line.includes('예측') && !line.includes('현재')) {
+        current = { title, lines: [] }
+        sections.push(current)
+        return
+      }
+      if (current) current.lines.push(line)
+    })
+
+  return sections.map((section) => {
+    const forecasts = []
+    const notes = []
+
+    section.lines.forEach((line) => {
+      const forecast = line.match(/(2026|2027|2028)[^:：]*[:：]\s*(.+)/)
+      if (forecast) {
+        forecasts.push({ year: forecast[1], value: forecast[2] })
+        return
+      }
+      const cleaned = line.replace(/^근거[:：]\s*/, '')
+      if (cleaned) notes.push(cleaned)
+    })
+
+    return { ...section, forecasts, notes }
+  })
+}
+
+function SimulationResultCards({ text }) {
+  const cards = parseSimulationCards(text)
+  const eventCards = cards.filter((card) => card.title !== '종합 전망')
+  const outlook = cards.find((card) => card.title === '종합 전망')
+
+  if (eventCards.length === 0) {
+    return (
+      <div className="bg-[#0f1117] rounded-lg p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap border border-slate-800">
+        {text}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        {eventCards.map((card) => (
+          <div key={card.title} className="bg-[#0f1117] border border-slate-700/60 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white">{card.title}</h3>
+              <span className="text-[11px] text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-2 py-0.5">
+                2026-2028
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {['2026', '2027', '2028'].map((year) => {
+                const forecast = card.forecasts.find((item) => item.year === year)
+                return (
+                  <div key={year} className="rounded-lg bg-slate-800/60 border border-slate-700/50 px-3 py-2 min-h-16">
+                    <p className="text-[11px] text-slate-500 mb-1">{year}</p>
+                    <p className="text-xs font-semibold text-slate-100 leading-snug">
+                      {forecast?.value || '-'}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {card.notes.length > 0 && (
+              <div className="border-t border-slate-800 pt-3">
+                <p className="text-[11px] font-semibold text-slate-500 mb-1">근거</p>
+                <p className="text-xs text-slate-300 leading-relaxed">{card.notes.join(' ')}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {outlook?.notes?.length > 0 && (
+        <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4">
+          <p className="text-xs font-semibold text-purple-300 mb-2">종합 전망</p>
+          <p className="text-sm text-slate-200 leading-relaxed">{outlook.notes.join(' ')}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const profile = useProfileStore((s) => s.profile)
@@ -99,7 +204,7 @@ export default function DashboardPage() {
   const trainingChartData = [...logs].reverse().slice(-14).map((l) => ({
     date: l.date?.slice(5),
     거리: l.total_distance_m,
-    RPE: l.rpe,
+    운동강도: l.rpe,
     컨디션: l.condition_score,
   }))
 
@@ -262,20 +367,20 @@ export default function DashboardPage() {
               <p className="text-slate-400 text-xs">2028년 7월 14일</p>
             </div>
           </div>
-          <div className="flex gap-6 text-center">
-            <div>
+          <div className="flex gap-6">
+            <div className="flex items-baseline justify-center gap-1">
               <p className="text-blue-400 font-bold text-2xl leading-none">{daysLeft}</p>
-              <p className="text-slate-500 text-xs mt-1">일</p>
+              <p className="text-slate-500 text-xs">일</p>
             </div>
             <div className="w-px bg-slate-700" />
-            <div>
+            <div className="flex items-baseline justify-center gap-1">
               <p className="text-purple-400 font-bold text-2xl leading-none">{weeksLeft}</p>
-              <p className="text-slate-500 text-xs mt-1">주</p>
+              <p className="text-slate-500 text-xs">주</p>
             </div>
             <div className="w-px bg-slate-700" />
-            <div>
+            <div className="flex items-baseline justify-center gap-1">
               <p className="text-green-400 font-bold text-2xl leading-none">{monthsLeftRounded}</p>
-              <p className="text-slate-500 text-xs mt-1">개월</p>
+              <p className="text-slate-500 text-xs">개월</p>
             </div>
           </div>
           <div className="text-right">
@@ -288,7 +393,7 @@ export default function DashboardPage() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard icon={Activity} label="이번 주 거리" value={`${totalDistThisWeek.toLocaleString()}m`} sub="최근 7일" color="blue" />
-        <StatCard icon={Flame} label="평균 RPE" value={avgRpe} sub="최근 7일" color="orange" />
+        <StatCard icon={Flame} label="평균 운동 강도" value={avgRpe} sub="최근 7일" color="orange" />
         <StatCard icon={Moon} label="평균 수면" value={`${avgSleep}h`} sub="최근 7일" color="purple" />
         <StatCard icon={Target} label="D-Day" value={`D-${daysLeft}`} sub="2028 LA 올림픽" color="green" />
       </div>
@@ -464,7 +569,7 @@ export default function DashboardPage() {
                 wrapperStyle={{ color: '#94a3b8', fontSize: 12, paddingTop: 8 }}
               />
               <Line yAxisId="distance" type="monotone" dataKey="거리" stroke="#3b82f6" strokeWidth={2} dot={false} name="훈련 거리(m)" />
-              <Line yAxisId="score" type="monotone" dataKey="RPE" stroke="#f97316" strokeWidth={2} dot={false} name="RPE(1-10)" />
+              <Line yAxisId="score" type="monotone" dataKey="운동강도" stroke="#f97316" strokeWidth={2} dot={false} name="운동 강도(1-10)" />
               <Line yAxisId="score" type="monotone" dataKey="컨디션" stroke="#a855f7" strokeWidth={2} dot={false} name="컨디션(1-10)" />
             </LineChart>
           </ResponsiveContainer>
@@ -648,9 +753,7 @@ export default function DashboardPage() {
           <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-2">{simError}</p>
         )}
         {simulation ? (
-          <div className="bg-[#0f1117] rounded-lg p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {simulation}
-          </div>
+          <SimulationResultCards text={simulation} />
         ) : (
           <p className="text-slate-600 text-sm">현재 PB 기록과 훈련 데이터를 기반으로 2028 올림픽까지의 성장 예측을 생성합니다.</p>
         )}
@@ -673,7 +776,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex gap-4 text-xs text-slate-400">
                   <span>{log.total_distance_m?.toLocaleString()}m</span>
-                  <span>RPE {log.rpe}</span>
+                  <span>운동 강도 {log.rpe}</span>
                   <span>수면 {log.sleep_hours}h</span>
                 </div>
               </div>

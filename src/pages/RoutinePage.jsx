@@ -78,7 +78,7 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
   )
 }
 
-export default function RoutinePage() {
+export default function RoutinePage({ embedded = false }) {
   const user = useAuthStore((s) => s.user)
   const [routines, setRoutines] = useState([])
   const [form, setForm] = useState(defaultForm)
@@ -159,8 +159,10 @@ export default function RoutinePage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-white">루틴 작성</h1>
-          <p className="text-slate-400 text-sm mt-0.5">훈련 루틴 템플릿을 저장하고 관리하세요</p>
+          <h1 className={`${embedded ? 'text-lg' : 'text-xl'} font-bold text-white`}>
+            {embedded ? '루틴 템플릿' : '루틴 작성'}
+          </h1>
+          <p className="text-slate-400 text-sm mt-0.5">자주 쓰는 훈련 구성을 저장하고 계획에 불러오세요</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}

@@ -7,7 +7,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
 } from 'recharts'
-import { Flame, Moon, Activity, Target, Trophy, BrainCircuit, RefreshCw } from 'lucide-react'
+import { Flame, Moon, Activity, Target, Trophy, BrainCircuit, RefreshCw, TrendingUp } from 'lucide-react'
 
 const OLYMPIC_TARGETS = {
   '자유형 400m':  { target: '3:43.00', targetSec: 223.0 },
@@ -114,6 +114,25 @@ export default function DashboardPage() {
   })
 
   const daysLeft = Math.ceil((new Date('2028-07-14') - new Date()) / (1000 * 60 * 60 * 24))
+  const weeksLeft = Math.floor(daysLeft / 7)
+  const monthsLeftRounded = Math.floor(daysLeft / 30)
+
+  // 주간 훈련 볼륨 계산
+  const weeklyVolumeMap = {}
+  logs.forEach((log) => {
+    const d = new Date(log.date)
+    const dayOfWeek = d.getDay()
+    const diff = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+    const monday = new Date(d)
+    monday.setDate(diff)
+    const key = monday.toISOString().slice(0, 10)
+    if (!weeklyVolumeMap[key]) weeklyVolumeMap[key] = { week: monday.toISOString().slice(5, 10), volume: 0, sessions: 0 }
+    weeklyVolumeMap[key].volume += log.total_distance_m || 0
+    weeklyVolumeMap[key].sessions += 1
+  })
+  const weeklyVolumeData = Object.values(weeklyVolumeMap)
+    .sort((a, b) => a.week.localeCompare(b.week))
+    .slice(-10)
 
   const runSimulation = async () => {
     setSimulating(true)
@@ -167,9 +186,39 @@ export default function DashboardPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-bold text-white">대시보드</h1>
-        <p className="text-slate-400 text-sm mt-0.5">
+        <p className="text-slate-400 text-sm mt-0.5 mb-4">
           2028 LA 올림픽까지 <span className="text-blue-400 font-semibold">{daysLeft}일</span> 남았습니다
         </p>
+        {/* 올림픽 카운트다운 배너 */}
+        <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-xl px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🏊</span>
+            <div>
+              <p className="text-white font-bold text-sm">2028 LA 올림픽</p>
+              <p className="text-slate-400 text-xs">2028년 7월 14일</p>
+            </div>
+          </div>
+          <div className="flex gap-6 text-center">
+            <div>
+              <p className="text-blue-400 font-bold text-2xl leading-none">{daysLeft}</p>
+              <p className="text-slate-500 text-xs mt-1">일</p>
+            </div>
+            <div className="w-px bg-slate-700" />
+            <div>
+              <p className="text-purple-400 font-bold text-2xl leading-none">{weeksLeft}</p>
+              <p className="text-slate-500 text-xs mt-1">주</p>
+            </div>
+            <div className="w-px bg-slate-700" />
+            <div>
+              <p className="text-green-400 font-bold text-2xl leading-none">{monthsLeftRounded}</p>
+              <p className="text-slate-500 text-xs mt-1">개월</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-500">원준 나이</p>
+            <p className="text-white font-bold">20세 <span className="text-slate-500 font-normal text-xs">at 올림픽</span></p>
+          </div>
+        </div>
       </div>
 
       {/* Stats row */}
@@ -273,6 +322,40 @@ export default function DashboardPage() {
               <Line type="monotone" dataKey="컨디션" stroke="#a855f7" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* 주간 훈련 볼륨 */}
+      {weeklyVolumeData.length > 0 && (
+        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp size={15} className="text-green-400" />
+            <h2 className="text-sm font-semibold text-slate-300">주간 훈련 볼륨</h2>
+            <span className="text-xs text-slate-500">최근 10주</span>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={weeklyVolumeData} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" vertical={false} />
+              <XAxis dataKey="week" tick={{ fill: '#64748b', fontSize: 10 }} />
+              <YAxis
+                tick={{ fill: '#64748b', fontSize: 10 }}
+                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 8 }}
+                formatter={(value, name) => [`${value.toLocaleString()}m`, '총 거리']}
+                labelFormatter={(label) => `${label} 주차`}
+                labelStyle={{ color: '#94a3b8' }}
+              />
+              <Bar dataKey="volume" fill="#22c55e" radius={[4, 4, 0, 0]}>
+                {weeklyVolumeData.map((entry, index) => {
+                  const isMax = entry.volume === Math.max(...weeklyVolumeData.map(d => d.volume))
+                  return <Cell key={index} fill={isMax ? '#facc15' : '#22c55e'} />
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-xs text-slate-600 mt-1">노란색: 최고 볼륨 주차</p>
         </div>
       )}
 

@@ -155,6 +155,42 @@ ${pbSummary || '기록 없음'}
   return callGemini(prompt, 700)
 }
 
+export async function getGrowthSimulation(pbs, logs) {
+  const pbSummary = pbs.slice(0, 10).map((p) => `${p.event}: ${p.record_time} (${p.achieved_date})`).join('\n')
+  const recentAvgDist = logs.length
+    ? Math.round(logs.slice(0, 14).reduce((s, l) => s + (l.total_distance_m || 0), 0) / Math.min(logs.length, 14))
+    : 0
+
+  const prompt = `
+너는 수영 데이터 분석 전문가야. 원준 선수(18세, 자유형 장거리, 2028 LA 올림픽 목표)의 현재 데이터를 바탕으로 2026~2028 성장 시나리오를 시뮬레이션해줘.
+
+[현재 PB 기록]
+${pbSummary || '없음'}
+
+[최근 평균 일일 훈련량]
+${recentAvgDist}m/일
+
+[참고]
+- 2028 LA 올림픽: 2028년 7월 14일
+- 현재 나이: 18세 (2008년생)
+- 웨이트 트레이닝 미수행 상태 (성장 여지 최대)
+- 2025 세계주니어 자유형 1500m 6위 입상
+
+주요 종목(자유형 400m, 800m, 1500m, 개인혼영 400m)에 대해 아래 형식으로 작성해:
+
+**자유형 1500m**
+- 2026 예측: X:XX.XX (현재 대비 -X.X초)
+- 2027 예측: X:XX.XX
+- 2028 올림픽: X:XX.XX
+- 근거: (1문장)
+
+각 종목을 위 형식으로, 현실적이되 긍정적인 시나리오로 한국어로 작성해.
+마지막에 **종합 전망** 2~3문장 추가.
+`.trim()
+
+  return callGemini(prompt, 900)
+}
+
 export async function getCompetitionEvaluation(competition, results, pbs, goals) {
   const resultSummary = results.map((r) =>
     `${r.event}: ${r.record_time ?? '기록없음'} / ${r.rank ? r.rank + '위' : '순위없음'}${r.heat ? ` (${r.heat})` : ''}${r.notes ? ` — ${r.notes}` : ''}`

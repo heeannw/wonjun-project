@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
-import { getTrendAnalysis } from '../lib/gemini'
+import { getTrendAnalysis, getGrowthSimulation } from '../lib/gemini'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -45,6 +45,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [trendAnalysis, setTrendAnalysis] = useState('')
   const [analyzingTrend, setAnalyzingTrend] = useState(false)
+  const [simulation, setSimulation] = useState('')
+  const [simulating, setSimulating] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -110,6 +112,18 @@ export default function DashboardPage() {
   })
 
   const daysLeft = Math.ceil((new Date('2028-07-14') - new Date()) / (1000 * 60 * 60 * 24))
+
+  const runSimulation = async () => {
+    setSimulating(true)
+    try {
+      const result = await getGrowthSimulation(pbs, logs)
+      setSimulation(result)
+    } catch (e) {
+      setSimulation(`시뮬레이션 오류: ${e.message}`)
+    } finally {
+      setSimulating(false)
+    }
+  }
 
   const runTrendAnalysis = async () => {
     if (logs.length === 0) return
@@ -349,6 +363,32 @@ export default function DashboardPage() {
           </p>
         </div>
       )}
+
+      {/* AI 성장 시뮬레이션 */}
+      <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <BrainCircuit size={15} className="text-purple-400" />
+            <h2 className="text-sm font-semibold text-slate-300">AI 성장 시뮬레이션</h2>
+            <span className="text-xs text-slate-500">2026~2028 예측</span>
+          </div>
+          <button
+            onClick={runSimulation}
+            disabled={simulating}
+            className="flex items-center gap-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+          >
+            {simulating ? <RefreshCw size={11} className="animate-spin" /> : <BrainCircuit size={11} />}
+            {simulating ? '분석 중...' : simulation ? '재시뮬레이션' : '시뮬레이션 실행'}
+          </button>
+        </div>
+        {simulation ? (
+          <div className="bg-[#0f1117] rounded-lg p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+            {simulation}
+          </div>
+        ) : (
+          <p className="text-slate-600 text-sm">현재 PB 기록과 훈련 데이터를 기반으로 2028 올림픽까지의 성장 예측을 생성합니다.</p>
+        )}
+      </div>
 
       {/* Recent logs */}
       <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">

@@ -341,6 +341,12 @@ export default function CompetitionPage() {
 
   const selectedComp = competitions.find(c => c.id === selectedCompId)
 
+  useEffect(() => {
+    if (!selectedComp) return
+    const ended = daysUntil(selectedComp.end_date || selectedComp.start_date) < 0
+    setPlanSubTab(ended ? 'post' : 'pre')
+  }, [selectedCompId])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">

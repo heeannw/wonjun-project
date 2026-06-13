@@ -7,7 +7,7 @@ const navItems = [
   { to: '/training', icon: BookOpen, label: '훈련 일지' },
   { to: '/records', icon: Trophy, label: 'PB 기록' },
   { to: '/mental', icon: Brain, label: '멘탈 일지' },
-  { to: '/plan', icon: CalendarDays, label: '운동 계획' },
+  { to: '/plan', icon: CalendarDays, label: '월간 훈련 계획' },
   { to: '/competitions', icon: Swords, label: '시합 일정' },
   { to: '/body', icon: Scale, label: '신체 기록' },
   { to: '/pace', icon: Timer, label: '페이스 계산기' },

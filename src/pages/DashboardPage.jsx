@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const [simulation, setSimulation] = useState('')
   const [simulating, setSimulating] = useState(false)
   const [simError, setSimError] = useState('')
+  const [aiCooldown, setAiCooldown] = useState(0) // 공유 쿨다운 (초)
   const [pbChartEvent, setPbChartEvent] = useState('')
   const [finaFilter, setFinaFilter] = useState([]) // 선택된 종목 (최대 5개)
   const [showFinaFilter, setShowFinaFilter] = useState(false)
@@ -172,6 +173,20 @@ export default function DashboardPage() {
     .sort((a, b) => a.week.localeCompare(b.week))
     .slice(-10)
 
+  // 429 쿨다운 카운트다운
+  useEffect(() => {
+    if (aiCooldown <= 0) return
+    const t = setTimeout(() => setAiCooldown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [aiCooldown])
+
+  const startCooldown = (e) => {
+    // 429 에러면 60초 쿨다운
+    if (e?.message?.includes('429') || e?.message?.includes('너무 많습니다') || e?.message?.includes('quota')) {
+      setAiCooldown(60)
+    }
+  }
+
   const runSimulation = async () => {
     setSimulating(true)
     setSimError('')
@@ -180,6 +195,7 @@ export default function DashboardPage() {
       setSimulation(result)
     } catch (e) {
       setSimError(e.message || '시뮬레이션 오류가 발생했습니다.')
+      startCooldown(e)
     } finally {
       setSimulating(false)
     }
@@ -194,6 +210,7 @@ export default function DashboardPage() {
       setTrendAnalysis(result)
     } catch (e) {
       setTrendError(e.message || '분석 중 오류가 발생했습니다.')
+      startCooldown(e)
     } finally {
       setAnalyzingTrend(false)
     }
@@ -507,11 +524,11 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={runTrendAnalysis}
-            disabled={analyzingTrend || logs.length === 0}
+            disabled={analyzingTrend || logs.length === 0 || aiCooldown > 0}
             className="flex items-center gap-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/30 disabled:opacity-40 text-purple-300 px-3 py-1.5 rounded-lg border border-purple-500/30 transition"
           >
             <RefreshCw size={12} className={analyzingTrend ? 'animate-spin' : ''} />
-            {analyzingTrend ? '분석 중...' : '분석 실행'}
+            {analyzingTrend ? '분석 중...' : aiCooldown > 0 ? `${aiCooldown}초 후 가능` : '분석 실행'}
           </button>
         </div>
         {trendError && (
@@ -591,11 +608,11 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={runSimulation}
-            disabled={simulating}
+            disabled={simulating || aiCooldown > 0}
             className="flex items-center gap-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
           >
             {simulating ? <RefreshCw size={11} className="animate-spin" /> : <BrainCircuit size={11} />}
-            {simulating ? '분석 중...' : '시뮬레이션 실행'}
+            {simulating ? '분석 중...' : aiCooldown > 0 ? `${aiCooldown}초 후 가능` : '시뮬레이션 실행'}
           </button>
         </div>
         {simError && (

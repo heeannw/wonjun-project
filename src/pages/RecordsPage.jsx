@@ -28,8 +28,6 @@ const EVENT_GROUPS = [
     events: ['개인혼영 200m', '개인혼영 400m'],
   },
 ]
-const ALL_EVENTS = EVENT_GROUPS.flatMap((g) => g.events)
-
 const OLYMPIC = {
   '자유형 400m': '3:43.00',
   '자유형 800m': '7:50.00',
@@ -140,13 +138,15 @@ export default function RecordsPage() {
     records.filter((r) => r.event === event)
       .sort((a, b) => new Date(a.achieved_date) - new Date(b.achieved_date))
 
-  // 전체 종목 중 최고 FINA 포인트
-  const maxFina = Math.max(
-    ...ALL_EVENTS.map((ev) => {
+  // 영법별 최고 FINA 포인트
+  const bestFinaForGroup = (group) =>
+    group.events.reduce((best, ev) => {
       const pb = latestPb(ev)
-      return pb ? (calcFinaPoints(ev, pb.record_time) ?? 0) : 0
-    })
-  )
+      const fina = pb ? calcFinaPoints(ev, pb.record_time) : null
+      if (!fina) return best
+      if (!best || fina > best.fina) return { event: ev, fina }
+      return best
+    }, null)
 
   return (
     <div>
@@ -322,6 +322,7 @@ export default function RecordsPage() {
           const isOpen = expandedGroup === group.label
           const groupPbs = group.events.map((ev) => ({ ev, pb: latestPb(ev) }))
           const hasAny = groupPbs.some((x) => x.pb)
+          const groupBestFina = bestFinaForGroup(group)
 
           return (
             <div key={group.label} className="bg-[#1a1d27] rounded-xl border border-slate-700/50 overflow-hidden">
@@ -335,6 +336,11 @@ export default function RecordsPage() {
                   {hasAny && (
                     <span className="text-xs text-slate-500">
                       {groupPbs.filter((x) => x.pb).length}개 기록
+                    </span>
+                  )}
+                  {groupBestFina && (
+                    <span className="text-xs font-semibold text-yellow-300 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full">
+                      최고 FINA {groupBestFina.fina} · {groupBestFina.event.replace(group.label + ' ', '')}
                     </span>
                   )}
                 </div>
@@ -360,6 +366,7 @@ export default function RecordsPage() {
                     <tbody>
                       {groupPbs.map(({ ev, pb }) => {
                         const fina = pb ? calcFinaPoints(ev, pb.record_time) : null
+                        const isGroupBestFina = fina && groupBestFina?.event === ev
                         const goal = goals[ev]
                         const gapSec = pb && goal
                           ? (timeToSeconds(pb.record_time) - timeToSeconds(goal.target_time)).toFixed(2)
@@ -376,9 +383,9 @@ export default function RecordsPage() {
                             <td className="px-3 py-2.5 text-slate-500 text-xs">{pb?.notes ?? '-'}</td>
                             <td className="px-3 py-2.5">
                               {fina ? (
-                                fina === maxFina ? (
-                                  <span className="text-xs font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/30">
-                                    {fina} ★
+                                isGroupBestFina ? (
+                                  <span className="text-xs font-bold text-yellow-300 bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/30">
+                                    {fina} 영법 최고
                                   </span>
                                 ) : (
                                   <span className={`text-xs font-medium ${fina >= 900 ? 'text-yellow-400' : fina >= 800 ? 'text-blue-400' : 'text-slate-400'}`}>

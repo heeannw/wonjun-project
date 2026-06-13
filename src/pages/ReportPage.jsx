@@ -4,13 +4,74 @@ import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import { getMonthlyReportAnalysis } from '../lib/gemini'
 import { useProfileStore } from '../store/profileStore'
-import { Printer, BrainCircuit, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Printer, BrainCircuit, RefreshCw, ChevronLeft, ChevronRight, Trophy } from 'lucide-react'
 
 function getMonthRange(year, month) {
   const start = `${year}-${String(month).padStart(2, '0')}-01`
   const lastDay = new Date(year, month, 0).getDate()
   const end = `${year}-${String(month).padStart(2, '0')}-${lastDay}`
   return { start, end }
+}
+
+function formatSeconds(value) {
+  return `${Math.abs(value).toFixed(2)}초`
+}
+
+function parseReportSections(text) {
+  if (!text) return []
+  const normalized = text.replace(/\r\n/g, '\n').trim()
+  const matches = [...normalized.matchAll(/(?:^|\n)\s*(\d+)\.\s+([^\n]+)\n/g)]
+  if (!matches.length) return [{ title: 'AI 종합 분석', body: normalized }]
+
+  return matches.map((match, index) => {
+    const next = matches[index + 1]
+    const start = match.index + match[0].length
+    const end = next ? next.index : normalized.length
+    return {
+      number: match[1],
+      title: match[2].trim(),
+      body: normalized.slice(start, end).trim(),
+    }
+  }).filter((section) => section.body)
+}
+
+function ReportSectionCard({ section }) {
+  const lines = section.body
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return (
+    <div className="bg-[#0f1117] print:bg-gray-50 border border-slate-700/50 print:border-gray-200 rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-3">
+        {section.number && (
+          <span className="w-6 h-6 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 print:text-blue-700 text-xs font-bold flex items-center justify-center shrink-0">
+            {section.number}
+          </span>
+        )}
+        <h3 className="text-sm font-bold text-white print:text-gray-900">{section.title}</h3>
+      </div>
+      <div className="space-y-2">
+        {lines.map((line, index) => {
+          const cleaned = line.replace(/^\d+\.\s*/, '').replace(/^[-•]\s*/, '')
+          const isDirection = section.title.includes('방향')
+          return (
+            <p
+              key={`${section.title}-${index}`}
+              className={`text-sm leading-relaxed print:text-gray-700 ${
+                isDirection
+                  ? 'text-slate-200 bg-[#151923] print:bg-white border border-slate-800 print:border-gray-200 rounded-lg px-3 py-2'
+                  : 'text-slate-300'
+              }`}
+            >
+              {isDirection && <span className="text-blue-400 print:text-blue-700 font-semibold mr-1">{index + 1}.</span>}
+              {cleaned}
+            </p>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export default function ReportPage() {
@@ -77,7 +138,25 @@ export default function ReportPage() {
 
   // 이번 달 PB 갱신 기록
   const { start: mStart, end: mEnd } = getMonthRange(year, month)
-  const monthPbs = pbs.filter(p => p.achieved_date >= mStart && p.achieved_date <= mEnd)
+  const monthPbs = pbs
+    .filter(p => p.achieved_date >= mStart && p.achieved_date <= mEnd)
+    .sort((a, b) => new Date(a.achieved_date) - new Date(b.achieved_date))
+  const monthPbChanges = monthPbs.map((pb) => {
+    const currentSec = timeToSeconds(pb.record_time)
+    const previousBest = pbs
+      .filter((record) => record.event === pb.event && record.achieved_date < pb.achieved_date)
+      .reduce((best, record) => {
+        if (!best) return record
+        return timeToSeconds(record.record_time) < timeToSeconds(best.record_time) ? record : best
+      }, null)
+    if (!previousBest) return { pb, status: 'first', previousBest: null, deltaSec: null }
+
+    const previousSec = timeToSeconds(previousBest.record_time)
+    const deltaSec = currentSec - previousSec
+    if (deltaSec < 0) return { pb, status: 'new-best', previousBest, deltaSec }
+    if (deltaSec > 0) return { pb, status: 'behind-best', previousBest, deltaSec }
+    return { pb, status: 'same-best', previousBest, deltaSec }
+  })
 
   // 종목별 현재 PB (가장 빠른 기록)
   const latestPbMap = {}
@@ -97,6 +176,7 @@ export default function ReportPage() {
     return acc
   }, {})
   const topEmotion = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]
+  const aiReportSections = parseReportSections(aiSummary)
 
   const runAiSummary = async () => {
     setAnalyzing(true)
@@ -229,11 +309,44 @@ export default function ReportPage() {
                 <p className="text-slate-500 text-sm">이번 달 새 PB 기록은 없습니다.</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  {monthPbs.map((pb) => (
-                    <div key={pb.id} className="bg-yellow-500/10 print:bg-yellow-50 print:border print:border-yellow-200 rounded-lg px-4 py-3">
-                      <p className="text-xs text-yellow-400 print:text-yellow-700 mb-1">{pb.achieved_date}</p>
-                      <p className="text-sm text-slate-300 print:text-gray-700">{pb.event}</p>
+                  {monthPbChanges.map(({ pb, status, previousBest, deltaSec }) => (
+                    <div
+                      key={pb.id}
+                      className={`rounded-lg px-4 py-3 border ${
+                        status === 'new-best'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 print:bg-emerald-50 print:border-emerald-200'
+                          : status === 'behind-best'
+                            ? 'bg-slate-900/50 border-slate-700/70 print:bg-gray-50 print:border-gray-200'
+                            : 'bg-yellow-500/10 border-yellow-500/25 print:bg-yellow-50 print:border-yellow-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                          <p className="text-xs text-slate-500 print:text-gray-500 mb-1">{pb.achieved_date}</p>
+                          <p className="text-sm text-slate-300 print:text-gray-700">{pb.event}</p>
+                        </div>
+                        {status === 'new-best' && (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-300 print:text-emerald-700 bg-emerald-500/10 px-2 py-1 rounded-full">
+                            <Trophy size={12} />
+                            신기록
+                          </span>
+                        )}
+                        {status === 'behind-best' && (
+                          <span className="text-xs font-bold text-orange-300 print:text-orange-700 bg-orange-500/10 px-2 py-1 rounded-full">
+                            ▼ +{formatSeconds(deltaSec)}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xl font-bold text-white print:text-gray-900">{pb.record_time}</p>
+                      {previousBest && (
+                        <p className="text-xs text-slate-500 print:text-gray-500 mt-1">
+                          기존 베스트 {previousBest.record_time}
+                          {status === 'new-best' && ` · ${formatSeconds(deltaSec)} 단축`}
+                        </p>
+                      )}
+                      {!previousBest && (
+                        <p className="text-xs text-slate-500 print:text-gray-500 mt-1">첫 등록 기록</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -352,8 +465,15 @@ export default function ReportPage() {
             {aiSummary && (
               <div>
                 <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">월간 종합 분석 결과서</h2>
-                <div className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-lg p-4 text-sm text-slate-300 print:text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {aiSummary}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {aiReportSections.map((section, index) => (
+                    <div
+                      key={`${section.title}-${index}`}
+                      className={index === 0 || section.title.includes('결론') ? 'xl:col-span-2' : ''}
+                    >
+                      <ReportSectionCard section={section} />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

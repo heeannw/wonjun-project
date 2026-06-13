@@ -384,7 +384,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-slate-500">올림픽 참여 원준 나이</p>
+            <p className="text-xs text-slate-500">올림픽 출전 나이</p>
             <p className="text-white font-bold">20세</p>
           </div>
         </div>

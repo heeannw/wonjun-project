@@ -1,5 +1,22 @@
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`
+
+async function callGemini(prompt, maxTokens = 800) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error?.message || `API 오류 ${res.status}`)
+  }
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '생성 실패'
+}
 
 export async function getTrendAnalysis(logs, pbs) {
   const logSummary = logs.slice(0, 14).map((l) =>
@@ -28,17 +45,7 @@ ${pbSummary || '기록 없음'}
 각 항목을 2~3문장으로, 전체 10~15문장 이내로 한국어로 작성해. 선수를 격려하되 냉철하게 분석해.
 `.trim()
 
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
-    }),
-  })
-  if (!res.ok) throw new Error('Gemini API 오류')
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '분석 생성 실패'
+  return callGemini(prompt, 800)
 }
 
 export async function getTrainingFeedback(todayLog, recentLogs) {
@@ -71,18 +78,7 @@ ${recentSummary || '기록 없음'}
 전완근 피로도가 7 이상이면 반드시 경고 메시지 포함.
 `.trim()
 
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 600, temperature: 0.7 },
-    }),
-  })
-
-  if (!res.ok) throw new Error('Gemini API 오류')
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '피드백 생성 실패'
+  return callGemini(prompt, 600)
 }
 
 export async function getCompetitionPrePlan(competition, pbs) {
@@ -120,65 +116,7 @@ ${pbSummary || '기록 없음'}
 각 구간을 구체적이고 실용적으로, 거리/강도 수치 포함해서 한국어로 작성해.
 `.trim()
 
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 900, temperature: 0.7 },
-    }),
-  })
-  if (!res.ok) throw new Error('Gemini API 오류')
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '플랜 생성 실패'
-}
-
-export async function getCompetitionEvaluation(competition, results, pbs, goals) {
-  const resultSummary = results.map((r) =>
-    `${r.event}: ${r.record_time ?? '기록없음'} / ${r.rank ? r.rank + '위' : '순위없음'}${r.heat ? ` (${r.heat})` : ''}${r.notes ? ` — ${r.notes}` : ''}`
-  ).join('\n')
-
-  const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
-
-  const goalSummary = Object.entries(goals).map(([ev, g]) => `${ev}: 목표 ${g.target_time}`).join('\n') || '목표 없음'
-
-  const prompt = `
-너는 수영 장거리 전문 코치야. 원준 선수(18세, 자유형 장거리, 2028 LA 올림픽 목표)의 시합 결과를 분석해줘.
-
-[시합 정보]
-대회명: ${competition.name}
-날짜: ${competition.start_date}
-풀: ${competition.pool_type}
-
-[시합 결과]
-${resultSummary || '결과 없음'}
-
-[현재 PB]
-${pbSummary || '없음'}
-
-[개인 목표]
-${goalSummary}
-
-다음 4가지를 분석해줘:
-1. **결과 총평**: 목표 대비 성과, PB 경신 여부 (2문장)
-2. **잘한 점**: 구체적으로 (1~2문장)
-3. **개선할 점**: 레이스 전략, 체력, 기술 관점 (1~2문장)
-4. **다음 시합 준비 방향**: 구체적 권고 (1~2문장)
-
-전체 8~12문장, 한국어로, 냉철하지만 격려하는 톤으로 작성해.
-`.trim()
-
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
-    }),
-  })
-  if (!res.ok) throw new Error('Gemini API 오류')
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '평가 생성 실패'
+  return callGemini(prompt, 900)
 }
 
 export async function getCompetitionPostPlan(competition, pbs) {
@@ -214,15 +152,42 @@ ${pbSummary || '기록 없음'}
 구체적이고 실용적으로, 한국어로 작성해.
 `.trim()
 
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 700, temperature: 0.7 },
-    }),
-  })
-  if (!res.ok) throw new Error('Gemini API 오류')
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '플랜 생성 실패'
+  return callGemini(prompt, 700)
+}
+
+export async function getCompetitionEvaluation(competition, results, pbs, goals) {
+  const resultSummary = results.map((r) =>
+    `${r.event}: ${r.record_time ?? '기록없음'} / ${r.rank ? r.rank + '위' : '순위없음'}${r.heat ? ` (${r.heat})` : ''}${r.notes ? ` — ${r.notes}` : ''}`
+  ).join('\n')
+
+  const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
+  const goalSummary = Object.entries(goals).map(([ev, g]) => `${ev}: 목표 ${g.target_time}`).join('\n') || '목표 없음'
+
+  const prompt = `
+너는 수영 장거리 전문 코치야. 원준 선수(18세, 자유형 장거리, 2028 LA 올림픽 목표)의 시합 결과를 분석해줘.
+
+[시합 정보]
+대회명: ${competition.name}
+날짜: ${competition.start_date}
+풀: ${competition.pool_type}
+
+[시합 결과]
+${resultSummary || '결과 없음'}
+
+[현재 PB]
+${pbSummary || '없음'}
+
+[개인 목표]
+${goalSummary}
+
+다음 4가지를 분석해줘:
+1. **결과 총평**: 목표 대비 성과, PB 경신 여부 (2문장)
+2. **잘한 점**: 구체적으로 (1~2문장)
+3. **개선할 점**: 레이스 전략, 체력, 기술 관점 (1~2문장)
+4. **다음 시합 준비 방향**: 구체적 권고 (1~2문장)
+
+전체 8~12문장, 한국어로, 냉철하지만 격려하는 톤으로 작성해.
+`.trim()
+
+  return callGemini(prompt, 800)
 }

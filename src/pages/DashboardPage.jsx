@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
+import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Cell
 } from 'recharts'
-import { Flame, Moon, Activity, Target } from 'lucide-react'
+import { Flame, Moon, Activity, Target, Trophy } from 'lucide-react'
 
 const OLYMPIC_TARGETS = {
-  '자유형 400m':  { target: '3:43.00', pb: '3:49.49', pbSec: 229.49, targetSec: 223.0 },
-  '자유형 1500m': { target: '14:52.00', pb: '15:13.36', pbSec: 913.36, targetSec: 892.0 },
-  '자유형 800m':  { target: '7:50.00', pb: '7:59.91', pbSec: 479.91, targetSec: 470.0 },
+  '자유형 400m':  { target: '3:43.00', targetSec: 223.0 },
+  '자유형 800m':  { target: '7:50.00', targetSec: 470.0 },
+  '자유형 1500m': { target: '14:52.00', targetSec: 892.0 },
 }
 
 function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
@@ -18,6 +20,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
     green: 'text-green-400 bg-green-500/10',
     orange: 'text-orange-400 bg-orange-500/10',
     purple: 'text-purple-400 bg-purple-500/10',
+    yellow: 'text-yellow-400 bg-yellow-500/10',
   }
   return (
     <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50">
@@ -36,20 +39,20 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const [logs, setLogs] = useState([])
+  const [pbs, setPbs] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchLogs = async () => {
-      const { data } = await supabase
-        .from('training_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-        .limit(30)
-      setLogs(data || [])
+    const fetchData = async () => {
+      const [logsRes, pbsRes] = await Promise.all([
+        supabase.from('training_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
+        supabase.from('personal_bests').select('*').eq('user_id', user.id).order('achieved_date', { ascending: true }),
+      ])
+      setLogs(logsRes.data || [])
+      setPbs(pbsRes.data || [])
       setLoading(false)
     }
-    fetchLogs()
+    fetchData()
   }, [user.id])
 
   const recentLogs = logs.slice(0, 7)
@@ -59,19 +62,50 @@ export default function DashboardPage() {
   const avgSleep = recentLogs.length
     ? (recentLogs.reduce((s, l) => s + (l.sleep_hours || 0), 0) / recentLogs.length).toFixed(1)
     : '-'
-  const totalDistThisWeek = recentLogs
-    .slice(0, 7)
-    .reduce((s, l) => s + (l.total_distance_m || 0), 0)
+  const totalDistThisWeek = recentLogs.reduce((s, l) => s + (l.total_distance_m || 0), 0)
 
-  const chartData = [...logs].reverse().slice(-14).map((l) => ({
+  const trainingChartData = [...logs].reverse().slice(-14).map((l) => ({
     date: l.date?.slice(5),
     거리: l.total_distance_m,
     RPE: l.rpe,
     컨디션: l.condition_score,
   }))
 
-  // Days until 2028 LA Olympics (July 14, 2028)
+  // 종목별 최신 PB
+  const latestPbs = {}
+  pbs.forEach((p) => { latestPbs[p.event] = p })
+
+  // FINA 포인트 데이터
+  const finaData = Object.keys(OLYMPIC_TARGETS).map((event) => {
+    const pb = latestPbs[event]
+    const points = pb ? calcFinaPoints(event, pb.record_time) : null
+    return { event: event.replace('자유형 ', '자유형\n'), points, record: pb?.record_time }
+  }).filter((d) => d.points)
+
+  // PB 변화 그래프 (1500m 기준)
+  const pbChartData = pbs
+    .filter((p) => p.event === '자유형 1500m')
+    .map((p) => ({
+      date: p.achieved_date?.slice(2),
+      기록초: Math.round(timeToSeconds(p.record_time)),
+      기록: p.record_time,
+    }))
+
+  // Olympic Gap (DB PB 기준으로 동적 계산)
+  const olympicGapData = Object.entries(OLYMPIC_TARGETS).map(([event, { target, targetSec }]) => {
+    const pb = latestPbs[event]
+    const pbSec = pb ? timeToSeconds(pb.record_time) : null
+    const gapSec = pbSec ? pbSec - targetSec : null
+    const progress = pbSec ? Math.max(0, Math.min(98, (1 - gapSec / pbSec * 8) * 100)) : 0
+    return { event, target, pb: pb?.record_time, pbSec, gapSec, progress }
+  })
+
   const daysLeft = Math.ceil((new Date('2028-07-14') - new Date()) / (1000 * 60 * 60 * 24))
+
+  // 주요 FINA 포인트 (1500m)
+  const main1500Pts = latestPbs['자유형 1500m']
+    ? calcFinaPoints('자유형 1500m', latestPbs['자유형 1500m'].record_time)
+    : null
 
   return (
     <div>
@@ -90,12 +124,78 @@ export default function DashboardPage() {
         <StatCard icon={Target} label="D-Day" value={`D-${daysLeft}`} sub="2028 LA 올림픽" color="green" />
       </div>
 
-      {/* Chart */}
-      {chartData.length > 0 && (
+      {/* FINA Points + PB 변화 */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {/* FINA 포인트 */}
+        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy size={15} className="text-yellow-400" />
+            <h2 className="text-sm font-semibold text-slate-300">FINA 포인트</h2>
+          </div>
+          {finaData.length === 0 ? (
+            <p className="text-slate-500 text-sm">PB 기록 페이지에서 기록을 입력하면 표시됩니다.</p>
+          ) : (
+            <div className="space-y-3">
+              {finaData.map(({ event, points, record }) => (
+                <div key={event}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-slate-400">{event}</span>
+                    <span className="text-white font-semibold">{points}pts</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-slate-700/40 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full ${points >= 900 ? 'bg-yellow-400' : points >= 800 ? 'bg-blue-400' : 'bg-slate-500'}`}
+                        style={{ width: `${Math.min(100, points / 10)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-slate-500">{record}</span>
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-slate-600 mt-2">올림픽 A기준 ≈ 900pts 이상</p>
+            </div>
+          )}
+        </div>
+
+        {/* PB 변화 그래프 */}
+        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
+          <h2 className="text-sm font-semibold text-slate-300 mb-4">자유형 1500m PB 변화</h2>
+          {pbChartData.length < 2 ? (
+            <p className="text-slate-500 text-sm">PB 기록을 2개 이상 입력하면 그래프가 표시됩니다.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={pbChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
+                <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} />
+                <YAxis
+                  domain={['auto', 'auto']}
+                  tick={{ fill: '#64748b', fontSize: 10 }}
+                  tickFormatter={(v) => {
+                    const m = Math.floor(v / 60)
+                    const s = (v % 60).toFixed(0).padStart(2, '0')
+                    return `${m}:${s}`
+                  }}
+                  reversed
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 8 }}
+                  formatter={(_, __, props) => [props.payload.기록, '기록']}
+                  labelStyle={{ color: '#94a3b8' }}
+                />
+                <Line type="monotone" dataKey="기록초" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* 훈련 추이 */}
+      {trainingChartData.length > 0 && (
         <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
           <h2 className="text-sm font-semibold text-slate-300 mb-4">훈련 추이 (최근 2주)</h2>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData}>
+            <LineChart data={trainingChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
               <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} />
               <YAxis tick={{ fill: '#64748b', fontSize: 11 }} />
@@ -115,27 +215,22 @@ export default function DashboardPage() {
       <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
         <h2 className="text-sm font-semibold text-slate-300 mb-4">올림픽 기준 기록 Gap</h2>
         <div className="space-y-3">
-          {Object.entries(OLYMPIC_TARGETS).map(([event, { target, pb, pbSec, targetSec }]) => {
-            const gapSec = pbSec - targetSec
-            const pct = Math.max(0, Math.min(100, ((pbSec - targetSec) / pbSec) * 100 * 10))
-            return (
-              <div key={event}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-300">{event}</span>
-                  <span className="text-slate-400">
-                    PB {pb} → 목표 {target}
+          {olympicGapData.map(({ event, target, pb, gapSec, progress }) => (
+            <div key={event}>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-slate-300">{event}</span>
+                <span className="text-slate-400">
+                  {pb ? `PB ${pb} → 목표 ${target}` : `목표 ${target}`}
+                  {gapSec != null && (
                     <span className="text-orange-400 ml-2">-{gapSec.toFixed(2)}초</span>
-                  </span>
-                </div>
-                <div className="w-full bg-slate-700/40 rounded-full h-1.5">
-                  <div
-                    className="bg-blue-500 h-1.5 rounded-full"
-                    style={{ width: `${100 - Math.min(100, (gapSec / pbSec) * 1000)}%` }}
-                  />
-                </div>
+                  )}
+                </span>
               </div>
-            )
-          })}
+              <div className="w-full bg-slate-700/40 rounded-full h-1.5">
+                <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -155,7 +250,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-500">{log.main_event || '자유형'}</p>
                 </div>
                 <div className="flex gap-4 text-xs text-slate-400">
-                  <span>{log.total_distance_m}m</span>
+                  <span>{log.total_distance_m?.toLocaleString()}m</span>
                   <span>RPE {log.rpe}</span>
                   <span>수면 {log.sleep_hours}h</span>
                 </div>

@@ -55,11 +55,15 @@ export default function DashboardPage() {
   const [finaFilter, setFinaFilter] = useState([]) // 선택된 종목 (최대 5개)
   const [showFinaFilter, setShowFinaFilter] = useState(false)
 
-  // pbs 로드 후 차트 종목 자동 선택
+  // pbs 로드 후 기록 2개 이상인 종목 중 가장 많은 종목 자동 선택
   useEffect(() => {
     if (pbs.length > 0 && !pbChartEvent) {
-      const events = [...new Set(pbs.map(p => p.event))]
-      setPbChartEvent(events[0] || '')
+      const counts = {}
+      pbs.forEach(p => { counts[p.event] = (counts[p.event] || 0) + 1 })
+      const best = Object.entries(counts)
+        .filter(([, c]) => c >= 2)
+        .sort(([, a], [, b]) => b - a)[0]?.[0]
+      setPbChartEvent(best || pbs[0]?.event || '')
     }
   }, [pbs])
 
@@ -129,6 +133,13 @@ export default function DashboardPage() {
       기록: p.record_time,
       fina: calcFinaPoints(selectedPbEvent, p.record_time) ?? '-',
     }))
+
+  // PB 차트 Y축 도메인 (데이터 기반, 위아래 여백 균등)
+  const pbSecValues = pbChartData.map(d => d.기록초).filter(Boolean)
+  const pbYMin = pbSecValues.length ? Math.min(...pbSecValues) : 0
+  const pbYMax = pbSecValues.length ? Math.max(...pbSecValues) : 100
+  const pbYPad = Math.max((pbYMax - pbYMin) * 0.5, 4)
+  const pbYDomain = [pbYMin - pbYPad, pbYMax + pbYPad]
 
   // Gap: 개인 목표 설정한 종목만 표시
   const gapData = Object.entries(goalsMap).map(([event, goal]) => {
@@ -362,10 +373,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
                 <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} />
                 <YAxis
-                  domain={([min, max]) => {
-                    const pad = (max - min) * 0.3 || 5
-                    return [min - pad, max + pad]
-                  }}
+                  domain={pbYDomain}
                   tick={{ fill: '#64748b', fontSize: 10 }}
                   tickFormatter={(v) => {
                     if (v < 0) return ''

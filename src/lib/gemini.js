@@ -12,6 +12,7 @@ async function callGemini(prompt, maxTokens = 800) {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
+    if (res.status === 429) throw new Error('요청이 너무 많습니다. 1분 후 다시 시도해주세요.')
     throw new Error(err?.error?.message || `API 오류 ${res.status}`)
   }
   const data = await res.json()

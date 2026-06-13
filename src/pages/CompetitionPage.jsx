@@ -31,8 +31,10 @@ export default function CompetitionPage() {
   const [form, setForm] = useState(defaultForm)
   const [showForm, setShowForm] = useState(false)
   const [expanded, setExpanded] = useState(null)
+  const [pageTab, setPageTab] = useState('schedule') // 'schedule' | 'plan'
+  const [selectedCompId, setSelectedCompId] = useState(null)
   const [generating, setGenerating] = useState({})
-  const [planTab, setPlanTab] = useState({})
+  const [planSubTab, setPlanSubTab] = useState('pre') // 'pre' | 'post'
   const [resultForm, setResultForm] = useState(defaultResultForm)
   const [addingResultFor, setAddingResultFor] = useState(null)
   const [evaluating, setEvaluating] = useState({})
@@ -44,7 +46,11 @@ export default function CompetitionPage() {
       supabase.from('personal_bests').select('*').eq('user_id', user.id),
       supabase.from('goals').select('*').eq('user_id', user.id),
     ])
-    setCompetitions(compRes.data || [])
+    const comps = compRes.data || []
+    setCompetitions(comps)
+    // 가장 가까운 예정 시합 자동 선택
+    const next = comps.find(c => daysUntil(c.start_date) >= 0) || comps[comps.length - 1]
+    if (next) setSelectedCompId(next.id)
     setPbs(pbsRes.data || [])
     const gm = {}
     goalsRes.data?.forEach((g) => { gm[g.event] = g })
@@ -333,21 +339,141 @@ export default function CompetitionPage() {
     )
   }
 
+  const selectedComp = competitions.find(c => c.id === selectedCompId)
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-white">시합 일정</h1>
           <p className="text-slate-400 text-sm mt-0.5">대회 일정 및 출전 종목 관리</p>
         </div>
+        {pageTab === 'schedule' && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+          >
+            <Plus size={16} />
+            시합 등록
+          </button>
+        )}
+      </div>
+
+      {/* 페이지 탭 */}
+      <div className="flex gap-1 mb-6 bg-[#1a1d27] p-1 rounded-lg border border-slate-700/50 w-fit">
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+          onClick={() => setPageTab('schedule')}
+          className={`text-sm px-4 py-2 rounded-md transition font-medium ${pageTab === 'schedule' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
         >
-          <Plus size={16} />
-          시합 등록
+          시합 일정
+        </button>
+        <button
+          onClick={() => setPageTab('plan')}
+          className={`text-sm px-4 py-2 rounded-md transition font-medium ${pageTab === 'plan' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}
+        >
+          훈련 플랜
         </button>
       </div>
+
+      {/* 훈련 플랜 탭 */}
+      {pageTab === 'plan' && (
+        <div>
+          {competitions.length === 0 ? (
+            <div className="bg-[#1a1d27] rounded-xl p-6 border border-slate-700/50 text-slate-500 text-sm">
+              먼저 시합 일정을 등록해주세요.
+            </div>
+          ) : (
+            <>
+              {/* 시합 선택 */}
+              <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50 mb-4">
+                <label className="block text-xs text-slate-500 mb-2">시합 선택</label>
+                <select
+                  value={selectedCompId || ''}
+                  onChange={(e) => setSelectedCompId(e.target.value)}
+                  className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+                >
+                  {competitions.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.start_date}) {daysUntil(c.start_date) >= 0 ? `D-${daysUntil(c.start_date)}` : '종료'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedComp && (
+                <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 overflow-hidden">
+                  {/* 시합 정보 */}
+                  <div className="px-5 py-4 border-b border-slate-700/30">
+                    <p className="text-white font-semibold">{selectedComp.name}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                      <span>{selectedComp.start_date}{selectedComp.end_date && ` ~ ${selectedComp.end_date}`}</span>
+                      {selectedComp.location && <span>{selectedComp.location}</span>}
+                      <span>{selectedComp.pool_type}</span>
+                    </div>
+                    {selectedComp.events?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {selectedComp.events.map(ev => (
+                          <span key={ev} className="text-xs bg-blue-600/20 border border-blue-500/30 text-blue-300 px-2 py-0.5 rounded-full">{ev}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 플랜 서브 탭 */}
+                  <div className="flex gap-1 px-5 pt-4 pb-2">
+                    <button
+                      onClick={() => setPlanSubTab('pre')}
+                      className={`text-xs px-4 py-1.5 rounded-md transition font-medium ${planSubTab === 'pre' ? 'bg-purple-600/30 text-purple-300 border border-purple-500/30' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      시합 전 2주 플랜
+                    </button>
+                    <button
+                      onClick={() => setPlanSubTab('post')}
+                      className={`text-xs px-4 py-1.5 rounded-md transition font-medium ${planSubTab === 'post' ? 'bg-slate-600/40 text-slate-300 border border-slate-500/30' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      시합 후 1주 플랜
+                    </button>
+                  </div>
+
+                  <div className="px-5 pb-5">
+                    <button
+                      onClick={() => generatePlan(selectedComp, planSubTab)}
+                      disabled={generating[`${selectedComp.id}-${planSubTab}`]}
+                      className="flex items-center gap-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 px-3 py-1.5 rounded-lg transition disabled:opacity-50 mb-3"
+                    >
+                      {generating[`${selectedComp.id}-${planSubTab}`]
+                        ? <RefreshCw size={11} className="animate-spin" />
+                        : <BrainCircuit size={11} />}
+                      {planSubTab === 'pre'
+                        ? (selectedComp.pre_plan ? '전훈 플랜 재생성' : '시합 전 2주 플랜 생성')
+                        : (selectedComp.post_plan ? '후훈 플랜 재생성' : '시합 후 1주 플랜 생성')}
+                    </button>
+                    {planSubTab === 'pre' && selectedComp.pre_plan && (
+                      <div className="bg-[#0f1117] rounded-lg p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                        {selectedComp.pre_plan}
+                      </div>
+                    )}
+                    {planSubTab === 'post' && selectedComp.post_plan && (
+                      <div className="bg-[#0f1117] rounded-lg p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                        {selectedComp.post_plan}
+                      </div>
+                    )}
+                    {planSubTab === 'pre' && !selectedComp.pre_plan && (
+                      <p className="text-slate-600 text-xs">버튼을 눌러 시합 전 2주 훈련 플랜을 생성하세요.</p>
+                    )}
+                    {planSubTab === 'post' && !selectedComp.post_plan && (
+                      <p className="text-slate-600 text-xs">버튼을 눌러 시합 후 1주 회복 플랜을 생성하세요.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {pageTab === 'plan' && <div className="hidden" />}
+      {pageTab !== 'plan' && <div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6 space-y-4">
@@ -366,7 +492,7 @@ export default function CompetitionPage() {
             </div>
             <div>
               <label className="block text-xs text-slate-400 mb-1">종료일 (선택)</label>
-              <input type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
+              <input type="date" value={form.end_date} min={form.start_date || undefined} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
                 className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
             </div>
             <div>
@@ -515,6 +641,7 @@ export default function CompetitionPage() {
           </div>
         </div>
       )}
+      </div>}
     </div>
   )
 }

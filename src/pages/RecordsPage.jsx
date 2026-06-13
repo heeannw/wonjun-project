@@ -437,13 +437,14 @@ export default function RecordsPage() {
                         <TrendingDown size={13} className="text-green-400" />
                         <p className="text-xs text-slate-400 font-medium">기록 성장 그래프</p>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-4">
                         {group.events.filter((ev) => history(ev).length > 1).map((ev) => {
                           const hist = history(ev)
                           const chartData = hist.map((r) => ({
                             date: r.achieved_date.slice(2),
                             초: Math.round(timeToSeconds(r.record_time) * 100) / 100,
                             기록: r.record_time,
+                            fina: calcFinaPoints(ev, r.record_time) ?? '-',
                           }))
                           const improvement = (
                             timeToSeconds(hist[0].record_time) - timeToSeconds(hist[hist.length - 1].record_time)
@@ -454,7 +455,7 @@ export default function RecordsPage() {
                                 <p className="text-xs text-slate-300 font-medium">{ev}</p>
                                 <span className="text-xs text-green-400 font-semibold">▼{improvement}초</span>
                               </div>
-                              <ResponsiveContainer width="100%" height={100}>
+                              <ResponsiveContainer width="100%" height={110}>
                                 <LineChart data={chartData}>
                                   <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
                                   <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
@@ -470,7 +471,17 @@ export default function RecordsPage() {
                                   />
                                   <Tooltip
                                     contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 6, fontSize: 11 }}
-                                    formatter={(_, __, props) => [props.payload.기록, '기록']}
+                                    content={({ active, payload }) => {
+                                      if (!active || !payload?.length) return null
+                                      const d = payload[0].payload
+                                      return (
+                                        <div style={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+                                          <p style={{ color: '#94a3b8' }}>{d.date}</p>
+                                          <p style={{ color: '#22c55e', fontWeight: 600 }}>{d.기록}</p>
+                                          <p style={{ color: '#60a5fa' }}>FINA {d.fina}pt</p>
+                                        </div>
+                                      )
+                                    }}
                                   />
                                   <Line type="monotone" dataKey="초" stroke="#22c55e" strokeWidth={2} dot={{ fill: '#22c55e', r: 3 }} />
                                 </LineChart>

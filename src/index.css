@@ -10,3 +10,9 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* 날짜 입력 캘린더 아이콘 흰색 */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}

@@ -95,10 +95,12 @@ export default function DashboardPage() {
   // PB 변화 그래프 (1500m 기준)
   const pbChartData = pbs
     .filter((p) => p.event === '자유형 1500m')
+    .sort((a, b) => new Date(a.achieved_date) - new Date(b.achieved_date))
     .map((p) => ({
       date: p.achieved_date?.slice(2),
-      기록초: Math.round(timeToSeconds(p.record_time)),
+      기록초: Math.round(timeToSeconds(p.record_time) * 100) / 100,
       기록: p.record_time,
+      fina: calcFinaPoints('자유형 1500m', p.record_time) ?? '-',
     }))
 
   // Gap: 개인 목표 설정한 종목만 표시
@@ -234,8 +236,17 @@ export default function DashboardPage() {
                 />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 8 }}
-                  formatter={(_, __, props) => [props.payload.기록, '기록']}
-                  labelStyle={{ color: '#94a3b8' }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null
+                    const d = payload[0].payload
+                    return (
+                      <div style={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
+                        <p style={{ color: '#94a3b8', marginBottom: 2 }}>{d.date}</p>
+                        <p style={{ color: '#3b82f6', fontWeight: 600 }}>{d.기록}</p>
+                        <p style={{ color: '#facc15' }}>FINA {d.fina}pt</p>
+                      </div>
+                    )
+                  }}
                 />
                 <Line type="monotone" dataKey="기록초" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} />
               </LineChart>
@@ -333,34 +344,53 @@ export default function DashboardPage() {
       {/* 올림픽 달성 시나리오 */}
       {scenarios.length > 0 && (
         <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-lg">🏅</span>
-            <h2 className="text-sm font-semibold text-slate-300">올림픽 기준 달성 시나리오</h2>
-            <span className="text-xs text-slate-500 ml-1">2028 LA 기준</span>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🏅</span>
+              <h2 className="text-sm font-semibold text-slate-300">올림픽 기준 달성 시나리오</h2>
+              <span className="text-xs text-slate-500">2028 LA</span>
+            </div>
+            <span className="text-xs text-slate-500 bg-slate-700/40 px-2.5 py-1 rounded-full">
+              {Math.round(monthsLeft)}개월 남음
+            </span>
           </div>
-          <div className="space-y-3">
-            {scenarios.map(({ event, target, gapSec, monthlyNeeded, achieved }) => (
-              <div key={event} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 w-28 shrink-0">{event}</span>
-                  <span className="text-xs text-slate-500">→ {target}</span>
-                </div>
-                {achieved ? (
-                  <span className="text-xs font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded">기준 달성!</span>
-                ) : (
-                  <div className="text-right">
-                    <span className="text-xs text-orange-400 font-semibold">
-                      월 {monthlyNeeded}초씩 단축 필요
-                    </span>
-                    <span className="text-xs text-slate-600 ml-2">(현재 -{gapSec.toFixed(2)}초)</span>
+          <div className="space-y-5">
+            {scenarios.map(({ event, target, pbSec, targetSec, gapSec, monthlyNeeded, achieved }) => {
+              // 진척도: 최악 기준(pbSec * 1.15)에서 목표까지 얼마나 왔는지
+              const worstSec = targetSec * 1.15
+              const progress = Math.min(100, Math.max(0, ((worstSec - pbSec) / (worstSec - targetSec)) * 100))
+              return (
+                <div key={event}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white font-medium">{event}</span>
+                      {achieved && <span className="text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full font-semibold">달성!</span>}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-slate-400">현재 <span className="text-white font-semibold">{latestPbs[event]?.record_time}</span></span>
+                      <span className="text-slate-600">→</span>
+                      <span className="text-slate-400">목표 <span className="text-blue-400 font-semibold">{target}</span></span>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+                  <div className="relative h-5 bg-slate-700/40 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${achieved ? 'bg-green-500' : progress > 70 ? 'bg-blue-500' : progress > 40 ? 'bg-orange-500' : 'bg-red-500/70'}`}
+                      style={{ width: `${progress}%` }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-end pr-2">
+                      <span className="text-xs font-bold text-white drop-shadow">{progress.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                  {!achieved && (
+                    <div className="flex justify-between mt-1 text-xs text-slate-600">
+                      <span>남은 gap: {gapSec.toFixed(2)}초</span>
+                      <span className="text-orange-400/80">월 {monthlyNeeded}초 단축 필요</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
-          <p className="text-xs text-slate-600 mt-3 border-t border-slate-700/30 pt-3">
-            2028 LA 올림픽까지 {Math.round(monthsLeft)}개월 남음
-          </p>
         </div>
       )}
 

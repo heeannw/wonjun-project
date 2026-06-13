@@ -160,6 +160,13 @@ function summarizeFeedbackContext(context = {}) {
 export async function getTrainingFeedback(todayLog, recentLogs, profile, context = {}) {
   const c = ctx(profile)
   const extra = summarizeFeedbackContext(context)
+  const setSummary = Array.isArray(todayLog.sets) && todayLog.sets.length
+    ? todayLog.sets.map((set, index) => {
+        const total = (set.distance || 0) * (set.reps || 1)
+        const note = set.note ? `, ${set.note}` : ''
+        return `${index + 1}. ${set.type} ${set.distance}m x ${set.reps} (${total}m, ${set.intensity})${note}`
+      }).join('\n')
+    : ''
   const recentSummary = recentLogs.slice(0, 7).map((l) =>
     `${l.date}: ${l.total_distance_m}m, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}`
   ).join('\n')
@@ -176,6 +183,9 @@ export async function getTrainingFeedback(todayLog, recentLogs, profile, context
 수면: ${todayLog.sleep_hours}시간
 신체 피로도: ${todayLog.forearm_fatigue}/10
 ${todayLog.notes ? `메모: ${todayLog.notes}` : ''}
+
+[오늘 세트 구성]
+${setSummary || '기록 없음'}
 
 [최근 7일 훈련 기록]
 ${recentSummary || '기록 없음'}

@@ -39,6 +39,10 @@ const TRAINING_EVENTS = [
   '기타',
 ]
 
+const SET_TYPES = ['자유형', '배영', '평영', '접영', '개인혼영', '킥', '드릴', '풀', '웜업', '쿨다운', '기타']
+const INTENSITIES = ['저', '중', '고', '최고']
+const emptySet = { type: '자유형', distance: '', reps: 1, intensity: '중', note: '' }
+
 const defaultForm = {
   date: new Date().toISOString().slice(0, 10),
   total_distance_m: '',
@@ -48,7 +52,36 @@ const defaultForm = {
   sleep_hours: '',
   condition_score: 7,
   forearm_fatigue: 3,
+  sets: [{ ...emptySet }],
   notes: '',
+}
+
+function calcSetTotal(sets) {
+  return sets.reduce((sum, set) => sum + (parseInt(set.distance) || 0) * (parseInt(set.reps) || 1), 0)
+}
+
+function getValidSets(sets) {
+  return sets
+    .map((set) => ({
+      type: set.type,
+      distance: parseInt(set.distance) || 0,
+      reps: parseInt(set.reps) || 1,
+      intensity: set.intensity,
+      note: set.note?.trim() || '',
+    }))
+    .filter((set) => set.distance > 0)
+}
+
+function formatSets(sets) {
+  const validSets = getValidSets(sets)
+  if (!validSets.length) return ''
+  return validSets
+    .map((set, index) => {
+      const total = set.distance * set.reps
+      const note = set.note ? ` · ${set.note}` : ''
+      return `${index + 1}. ${set.type} ${set.distance}m × ${set.reps} (${total}m, ${set.intensity})${note}`
+    })
+    .join('\n')
 }
 
 function SliderField({ label, name, value, min, max, onChange, color = 'blue' }) {
@@ -71,6 +104,66 @@ function SliderField({ label, name, value, min, max, onChange, color = 'blue' })
       />
       <div className="flex justify-between text-xs text-slate-600 mt-0.5">
         <span>{min}</span><span>{max}</span>
+      </div>
+    </div>
+  )
+}
+
+function SetRow({ set, index, onChange, onDelete, canDelete }) {
+  return (
+    <div className="grid grid-cols-12 gap-2 items-center py-2 border-b border-slate-700/30 last:border-0">
+      <div className="col-span-1 text-slate-500 text-xs text-center">{index + 1}</div>
+      <div className="col-span-2">
+        <select
+          value={set.type}
+          onChange={(e) => onChange(index, 'type', e.target.value)}
+          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+        >
+          {SET_TYPES.map((type) => <option key={type}>{type}</option>)}
+        </select>
+      </div>
+      <div className="col-span-2">
+        <input
+          type="number"
+          value={set.distance}
+          onChange={(e) => onChange(index, 'distance', e.target.value)}
+          placeholder="거리(m)"
+          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+        />
+      </div>
+      <div className="col-span-1">
+        <input
+          type="number"
+          value={set.reps}
+          onChange={(e) => onChange(index, 'reps', e.target.value)}
+          min={1}
+          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+        />
+      </div>
+      <div className="col-span-2">
+        <select
+          value={set.intensity}
+          onChange={(e) => onChange(index, 'intensity', e.target.value)}
+          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+        >
+          {INTENSITIES.map((intensity) => <option key={intensity}>{intensity}</option>)}
+        </select>
+      </div>
+      <div className="col-span-3">
+        <input
+          type="text"
+          value={set.note}
+          onChange={(e) => onChange(index, 'note', e.target.value)}
+          placeholder="메모"
+          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+        />
+      </div>
+      <div className="col-span-1 flex justify-center">
+        {canDelete && (
+          <button type="button" onClick={() => onDelete(index)} className="text-slate-600 hover:text-red-400 transition">
+            ×
+          </button>
+        )}
       </div>
     </div>
   )
@@ -171,9 +264,23 @@ export default function TrainingPage() {
     setForm((f) => ({ ...f, [name]: value }))
   }
 
+  const handleSetChange = (index, field, value) => {
+    setForm((f) => {
+      const sets = [...f.sets]
+      sets[index] = { ...sets[index], [field]: value }
+      return { ...f, sets }
+    })
+  }
+
+  const addSet = () => setForm((f) => ({ ...f, sets: [...f.sets, { ...emptySet }] }))
+  const deleteSet = (index) => setForm((f) => ({ ...f, sets: f.sets.filter((_, i) => i !== index) }))
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubmitting(true)
+    const setSummary = formatSets(form.sets)
+    const baseNotes = form.notes?.trim() || ''
+    const validSets = getValidSets(form.sets)
     const payload = {
       ...form,
       user_id: user.id,
@@ -183,12 +290,33 @@ export default function TrainingPage() {
       sleep_hours: parseFloat(form.sleep_hours) || null,
       condition_score: parseInt(form.condition_score),
       forearm_fatigue: parseInt(form.forearm_fatigue),
+      sets: validSets,
+      notes: baseNotes || null,
     }
-    const { data: inserted } = await supabase
+
+    const { data: inserted, error } = await supabase
       .from('training_logs')
       .insert(payload)
       .select()
       .single()
+
+    let savedLog = inserted
+    if (error) {
+      const fallbackPayload = { ...payload }
+      delete fallbackPayload.sets
+      fallbackPayload.notes = [baseNotes, setSummary ? `세트 구성:\n${setSummary}` : ''].filter(Boolean).join('\n\n') || null
+      const fallbackRes = await supabase
+        .from('training_logs')
+        .insert(fallbackPayload)
+        .select()
+        .single()
+      if (fallbackRes.error) {
+        setSubmitting(false)
+        alert(fallbackRes.error.message || error.message || '훈련 일지 저장 중 오류가 발생했습니다.')
+        return
+      }
+      savedLog = fallbackRes.data
+    }
 
     setForm(defaultForm)
     setShowForm(false)
@@ -196,21 +324,21 @@ export default function TrainingPage() {
     await fetchLogs()
 
     // AI 피드백 생성
-    if (inserted) {
+    if (savedLog) {
       setGeneratingFeedback(true)
-      setExpandedId(inserted.id)
+      setExpandedId(savedLog.id)
       try {
         const recentLogs = logs.slice(0, 7)
         const feedbackContext = await fetchFeedbackContext(user.id)
-        const feedbackText = await getTrainingFeedback(inserted, recentLogs, profile, feedbackContext)
+        const feedbackText = await getTrainingFeedback(savedLog, recentLogs, profile, feedbackContext)
         await supabase.from('training_feedback').insert({
           user_id: user.id,
-          log_id: inserted.id,
+          log_id: savedLog.id,
           feedback: feedbackText,
         })
-        setFeedbacks((prev) => ({ ...prev, [inserted.id]: feedbackText }))
+        setFeedbacks((prev) => ({ ...prev, [savedLog.id]: feedbackText }))
       } catch (e) {
-        setFeedbacks((prev) => ({ ...prev, [inserted.id]: e.message || 'AI 피드백 생성 중 오류가 발생했습니다.' }))
+        setFeedbacks((prev) => ({ ...prev, [savedLog.id]: e.message || 'AI 피드백 생성 중 오류가 발생했습니다.' }))
       } finally {
         setGeneratingFeedback(false)
       }
@@ -313,6 +441,37 @@ export default function TrainingPage() {
           </div>
 
           <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm text-slate-400">세트 구성</label>
+              <span className="text-xs text-blue-400">총 {calcSetTotal(form.sets).toLocaleString()}m</span>
+            </div>
+            <div className="bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2">
+              <div className="grid grid-cols-12 gap-2 text-[11px] text-slate-600 px-1 pb-1">
+                <span className="col-span-1 text-center">#</span>
+                <span className="col-span-2">종류</span>
+                <span className="col-span-2">거리(m)</span>
+                <span className="col-span-1">횟수</span>
+                <span className="col-span-2">강도</span>
+                <span className="col-span-3">메모</span>
+                <span className="col-span-1" />
+              </div>
+              {form.sets.map((set, index) => (
+                <SetRow
+                  key={index}
+                  set={set}
+                  index={index}
+                  onChange={handleSetChange}
+                  onDelete={deleteSet}
+                  canDelete={form.sets.length > 1}
+                />
+              ))}
+              <button type="button" onClick={addSet} className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition">
+                + 세트 추가
+              </button>
+            </div>
+          </div>
+
+          <div className="mb-4">
             <label className="block text-sm text-slate-400 mb-1">오늘 훈련 메모 (선택)</label>
             <textarea
               name="notes"
@@ -405,6 +564,23 @@ export default function TrainingPage() {
                   </div>
                   {log.notes && (
                     <p className="text-slate-400 text-sm mt-3 bg-slate-700/20 rounded-lg px-3 py-2">{log.notes}</p>
+                  )}
+
+                  {Array.isArray(log.sets) && log.sets.length > 0 && (
+                    <div className="mt-3 bg-[#0f1117] border border-slate-700/40 rounded-lg px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-400 mb-2">세트 구성</p>
+                      <div className="space-y-1">
+                        {log.sets.map((set, index) => (
+                          <div key={index} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-300">
+                              {index + 1}. {set.type} {set.distance}m × {set.reps}
+                              {set.note ? <span className="text-slate-500"> · {set.note}</span> : null}
+                            </span>
+                            <span className="text-slate-500">{set.intensity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
 
                   {/* AI 피드백 */}

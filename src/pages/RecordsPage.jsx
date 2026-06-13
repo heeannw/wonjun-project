@@ -451,9 +451,10 @@ export default function RecordsPage() {
                               isPb: sec === Math.round(pbSec * 100) / 100,
                             }
                           })
-                          const improvement = (
-                            timeToSeconds(hist[0].record_time) - timeToSeconds(hist[hist.length - 1].record_time)
-                          ).toFixed(2)
+                          const improvementSec = timeToSeconds(hist[0].record_time) - timeToSeconds(hist[hist.length - 1].record_time)
+                          const impMin = Math.floor(improvementSec / 60)
+                          const impSec = (improvementSec % 60).toFixed(2)
+                          const improvementLabel = impMin > 0 ? `${impMin}분 ${impSec}초` : `${impSec}초`
                           const CustomDot = (props) => {
                             const { cx, cy, payload } = props
                             if (payload.isPb) return <circle cx={cx} cy={cy} r={6} fill="#facc15" stroke="#1a1d27" strokeWidth={2} />
@@ -463,7 +464,7 @@ export default function RecordsPage() {
                             <div key={ev} className="bg-[#0f1117] rounded-lg p-3 w-full">
                               <div className="flex justify-between items-center mb-2">
                                 <p className="text-xs text-slate-300 font-medium">{ev}</p>
-                                <span className="text-xs text-green-400 font-semibold">▼{improvement}초</span>
+                                <span className="text-xs text-green-400 font-semibold">▼{improvementLabel}</span>
                               </div>
                               <ResponsiveContainer width="100%" height={120}>
                                 <LineChart data={chartData}>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { AlertTriangle, BarChart3, CalendarDays, ClipboardCheck, Dumbbell, FileText, MessageSquare, Save, Scale, Target, Trophy } from 'lucide-react'
+import { BarChart3, CalendarDays, Check, ClipboardCheck, Edit3, MessageSquare, Save, Target, Trash2, Trophy, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
@@ -58,6 +58,12 @@ function TextBox({ children, tone = 'default' }) {
   return <p className={`text-sm text-slate-300 rounded-lg border px-3 py-2 leading-relaxed ${toneClass}`}>{children}</p>
 }
 
+function formatDateLabel(date) {
+  const parsed = new Date(`${date}T00:00:00`)
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토']
+  return `${date.slice(5).replace('-', '/')} (${weekdays[parsed.getDay()]})`
+}
+
 export default function CoachPage() {
   const user = useAuthStore((s) => s.user)
   const location = useLocation()
@@ -76,10 +82,18 @@ export default function CoachPage() {
     competitions: [],
     competitionResults: [],
     notes: [],
+    replies: [],
   })
   const [note, setNote] = useState('')
   const [category, setCategory] = useState('수영 피드백')
   const [savingNote, setSavingNote] = useState(false)
+  const [feedbackDate, setFeedbackDate] = useState('all')
+  const [editingFeedbackId, setEditingFeedbackId] = useState(null)
+  const [editFeedbackCategory, setEditFeedbackCategory] = useState('수영 피드백')
+  const [editFeedbackContent, setEditFeedbackContent] = useState('')
+  const [replyDrafts, setReplyDrafts] = useState({})
+  const [savingReplyId, setSavingReplyId] = useState(null)
+  const [actionError, setActionError] = useState('')
 
   const selectedAthlete = athletes.find((athlete) => athlete.user_id === selectedAthleteId)
 
@@ -127,7 +141,7 @@ export default function CoachPage() {
     if (!athleteId) return
     setLoading(true)
     try {
-      const [logsRes, pbsRes, mentalRes, bodyRes, strengthRes, competitionsRes, notesRes] = await Promise.all([
+      const [logsRes, pbsRes, mentalRes, bodyRes, strengthRes, competitionsRes, notesRes, repliesRes] = await Promise.all([
         supabase.from('training_logs').select('*').eq('user_id', athleteId).order('date', { ascending: false }).limit(40),
         supabase.from('personal_bests').select('*').eq('user_id', athleteId).order('achieved_date', { ascending: true }),
         supabase.from('mental_journals').select('*').eq('user_id', athleteId).order('date', { ascending: false }).limit(20),
@@ -135,6 +149,7 @@ export default function CoachPage() {
         supabase.from('strength_records').select('*').eq('user_id', athleteId).order('date', { ascending: false }).limit(20),
         supabase.from('competitions').select('*').eq('user_id', athleteId).order('start_date', { ascending: false }).limit(20),
         supabase.from('coach_notes').select('*').eq('athlete_id', athleteId).order('note_date', { ascending: false }).limit(30),
+        supabase.from('coach_note_replies').select('*').eq('athlete_id', athleteId).order('created_at', { ascending: true }).limit(100),
       ])
 
       const competitionIds = competitionsRes.data?.map((competition) => competition.id) || []
@@ -151,6 +166,7 @@ export default function CoachPage() {
         competitions: competitionsRes.data || [],
         competitionResults: resultsRes.data || [],
         notes: notesRes.data || [],
+        replies: repliesRes.data || [],
       })
     } finally {
       setLoading(false)
@@ -158,11 +174,57 @@ export default function CoachPage() {
   }
 
   useEffect(() => {
-    if (user?.id) fetchCoachData()
+    if (!user?.id) return undefined
+    const timer = window.setTimeout(() => fetchCoachData(), 0)
+    return () => window.clearTimeout(timer)
   }, [user?.id])
 
   useEffect(() => {
-    if (selectedAthleteId) fetchAthleteData(selectedAthleteId)
+    if (!selectedAthleteId) return undefined
+    const timer = window.setTimeout(() => fetchAthleteData(selectedAthleteId), 0)
+    return () => window.clearTimeout(timer)
+  }, [selectedAthleteId])
+
+  useEffect(() => {
+    if (!selectedAthleteId) return undefined
+
+    const repliesChannel = supabase
+      .channel(`coach-view-replies-${selectedAthleteId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'coach_note_replies',
+          filter: `athlete_id=eq.${selectedAthleteId}`,
+        },
+        (payload) => {
+          setData((current) => {
+            if (payload.eventType === 'INSERT') {
+              if (current.replies.some((item) => item.id === payload.new.id)) return current
+              return { ...current, replies: [...current.replies, payload.new] }
+            }
+            if (payload.eventType === 'UPDATE') {
+              return {
+                ...current,
+                replies: current.replies.map((item) => item.id === payload.new.id ? payload.new : item),
+              }
+            }
+            if (payload.eventType === 'DELETE') {
+              return {
+                ...current,
+                replies: current.replies.filter((item) => item.id !== payload.old.id),
+              }
+            }
+            return current
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(repliesChannel)
+    }
   }, [selectedAthleteId])
 
   const summary = useMemo(() => {
@@ -228,6 +290,7 @@ export default function CoachPage() {
 
   const saveCoachNote = async (forcedCategory = category) => {
     if (!note.trim() || !selectedAthleteId) return
+    setActionError('')
     setSavingNote(true)
     const { data: inserted, error } = await supabase
       .from('coach_notes')
@@ -241,11 +304,97 @@ export default function CoachPage() {
       .select()
       .single()
 
-    if (!error && inserted) {
+    if (error) {
+      setActionError(`피드백 저장 실패: ${error.message}`)
+    } else if (inserted) {
       setData((current) => ({ ...current, notes: [inserted, ...current.notes] }))
       setNote('')
     }
     setSavingNote(false)
+  }
+
+  const startEditFeedback = (item) => {
+    setEditingFeedbackId(item.id)
+    setEditFeedbackCategory(item.category)
+    setEditFeedbackContent(item.content)
+  }
+
+  const cancelEditFeedback = () => {
+    setEditingFeedbackId(null)
+    setEditFeedbackCategory('수영 피드백')
+    setEditFeedbackContent('')
+  }
+
+  const updateCoachFeedback = async (id) => {
+    if (!editFeedbackContent.trim()) return
+    setActionError('')
+    const { data: updated, error } = await supabase
+      .from('coach_notes')
+      .update({
+        category: editFeedbackCategory,
+        content: editFeedbackContent.trim(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      setActionError(`피드백 수정 실패: ${error.message}`)
+    } else if (updated) {
+      setData((current) => ({
+        ...current,
+        notes: current.notes.map((item) => item.id === id ? updated : item),
+      }))
+      cancelEditFeedback()
+    }
+  }
+
+  const deleteCoachFeedback = async (id) => {
+    if (!window.confirm('이 피드백을 삭제할까요? 선수 화면에서도 보이지 않게 됩니다.')) return
+    setActionError('')
+    const { error } = await supabase.from('coach_notes').delete().eq('id', id)
+    if (error) {
+      setActionError(`피드백 삭제 실패: ${error.message}`)
+    } else {
+      setData((current) => ({
+        ...current,
+        notes: current.notes.filter((item) => item.id !== id),
+      }))
+      if (editingFeedbackId === id) cancelEditFeedback()
+    }
+  }
+
+  const saveCoachReply = async (feedback) => {
+    const content = replyDrafts[feedback.id]?.trim()
+    if (!content) return
+    setActionError('')
+    setSavingReplyId(feedback.id)
+    const { data: inserted, error } = await supabase
+      .from('coach_note_replies')
+      .insert({
+        note_id: feedback.id,
+        coach_id: user.id,
+        athlete_id: selectedAthleteId,
+        sender_id: user.id,
+        sender_role: 'coach',
+        content,
+        reply_date: new Date().toISOString().slice(0, 10),
+      })
+      .select()
+      .single()
+
+    if (error) {
+      setActionError(`답글 저장 실패: ${error.message}`)
+    } else if (inserted) {
+      setData((current) => ({
+        ...current,
+        replies: current.replies.some((item) => item.id === inserted.id)
+          ? current.replies
+          : [...current.replies, inserted],
+      }))
+      setReplyDrafts((current) => ({ ...current, [feedback.id]: '' }))
+    }
+    setSavingReplyId(null)
   }
 
   const renderAthleteSelector = () => (
@@ -456,16 +605,163 @@ export default function CoachPage() {
       </div>
 
       <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
-        <h2 className="text-white font-semibold mb-3">최근 보낸 피드백</h2>
+        <h2 className="text-white font-semibold mb-3">보낸 피드백 관리</h2>
+        {(() => {
+          const sentFeedbacks = data.notes.filter((item) => item.category !== '코치 메모')
+          const feedbackDates = [...new Set(sentFeedbacks.map((item) => item.note_date))].sort((a, b) => b.localeCompare(a))
+          const filteredFeedbacks = feedbackDate === 'all'
+            ? sentFeedbacks
+            : sentFeedbacks.filter((item) => item.note_date === feedbackDate)
+          const repliesByNote = data.replies.reduce((map, reply) => {
+            if (!map[reply.note_id]) map[reply.note_id] = []
+            map[reply.note_id].push(reply)
+            return map
+          }, {})
+
+          return (
+            <>
+              <div className="mb-4">
+                <p className="text-xs text-slate-500 mb-2">날짜별 보기</p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackDate('all')}
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      feedbackDate === 'all'
+                        ? 'border-blue-500 bg-blue-600/20 text-blue-300'
+                        : 'border-slate-700 text-slate-500 hover:border-slate-500'
+                    }`}
+                  >
+                    전체
+                  </button>
+                  {feedbackDates.map((date) => (
+                    <button
+                      key={date}
+                      type="button"
+                      onClick={() => setFeedbackDate(date)}
+                      className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        feedbackDate === date
+                          ? 'border-blue-500 bg-blue-600/20 text-blue-300'
+                          : 'border-slate-700 text-slate-500 hover:border-slate-500'
+                      }`}
+                    >
+                      {formatDateLabel(date)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
         <div className="space-y-2">
-          {data.notes.filter((item) => item.category !== '코치 메모').map((item) => (
-            <div key={item.id} className="bg-[#0f1117] border border-slate-800 rounded-lg px-3 py-2">
-              <p className="text-xs text-slate-500 mb-1">{item.note_date} · {item.category}</p>
-              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{item.content}</p>
-            </div>
-          ))}
-          {!data.notes.filter((item) => item.category !== '코치 메모').length && <p className="text-sm text-slate-500">아직 보낸 피드백이 없습니다.</p>}
-        </div>
+                {filteredFeedbacks.map((item) => (
+                  <div key={item.id} className="bg-[#0f1117] border border-slate-800 rounded-lg px-3 py-2">
+                    {editingFeedbackId === item.id ? (
+                      <div className="space-y-2">
+                        <select
+                          value={editFeedbackCategory}
+                          onChange={(event) => setEditFeedbackCategory(event.target.value)}
+                          className="w-full bg-[#111827] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                        >
+                          {feedbackCategories.map((option) => <option key={option}>{option}</option>)}
+                        </select>
+                        <textarea
+                          value={editFeedbackContent}
+                          onChange={(event) => setEditFeedbackContent(event.target.value)}
+                          rows={4}
+                          className="w-full bg-[#111827] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateCoachFeedback(item.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500"
+                          >
+                            <Check size={13} />
+                            저장
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditFeedback}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-600"
+                          >
+                            <X size={13} />
+                            취소
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-1 flex items-start justify-between gap-3">
+                          <p className="text-xs text-slate-500">{item.note_date} · {item.category}</p>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startEditFeedback(item)}
+                              className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-800 hover:text-blue-300"
+                              title="피드백 수정"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteCoachFeedback(item.id)}
+                              className="rounded-md p-1.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-400"
+                              title="피드백 삭제"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{item.content}</p>
+                        {(repliesByNote[item.id] || []).length > 0 && (
+                          <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
+                            {(repliesByNote[item.id] || []).map((reply) => (
+                              <div
+                                key={reply.id}
+                                className={`rounded-lg border px-3 py-2 ${
+                                  reply.sender_role === 'coach'
+                                    ? 'border-purple-500/20 bg-purple-500/5'
+                                    : 'border-blue-500/20 bg-blue-500/5'
+                                }`}
+                              >
+                                <p className={`text-xs mb-1 ${reply.sender_role === 'coach' ? 'text-purple-300' : 'text-blue-300'}`}>
+                                  {reply.sender_role === 'coach' ? '코치 답글' : '선수 답글'} · {reply.reply_date}
+                                </p>
+                                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{reply.content}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-3 border-t border-slate-800 pt-3">
+                          <textarea
+                            value={replyDrafts[item.id] || ''}
+                            onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                            rows={3}
+                            placeholder="선수 답글에 대한 답변이나 추가 지시를 남기세요."
+                            className="w-full bg-[#111827] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 resize-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveCoachReply(item)}
+                            disabled={savingReplyId === item.id || !replyDrafts[item.id]?.trim()}
+                            className="mt-2 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50"
+                          >
+                            <MessageSquare size={13} />
+                            답글 보내기
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+                {!filteredFeedbacks.length && (
+                  <p className="text-sm text-slate-500">
+                    {sentFeedbacks.length ? '선택한 날짜에 보낸 피드백이 없습니다.' : '아직 보낸 피드백이 없습니다.'}
+                  </p>
+                )}
+              </div>
+            </>
+          )
+        })()}
       </section>
     </div>
   )
@@ -518,6 +814,12 @@ export default function CoachPage() {
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
           <p className="text-sm text-red-400">코치 권한 테이블 또는 연결 정보를 확인해야 합니다.</p>
           <p className="text-xs text-slate-500 mt-2">{setupError}</p>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+          <p className="text-sm text-red-400">{actionError}</p>
         </div>
       )}
 

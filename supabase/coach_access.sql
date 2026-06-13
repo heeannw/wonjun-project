@@ -28,9 +28,34 @@ create table if not exists public.coach_notes (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.coach_note_replies (
+  id uuid primary key default gen_random_uuid(),
+  note_id uuid not null references public.coach_notes(id) on delete cascade,
+  coach_id uuid not null references auth.users(id) on delete cascade,
+  athlete_id uuid not null references auth.users(id) on delete cascade,
+  sender_id uuid references auth.users(id) on delete cascade,
+  sender_role text check (sender_role in ('coach', 'athlete')),
+  reply_date date not null default current_date,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.coach_note_replies
+  add column if not exists sender_id uuid references auth.users(id) on delete cascade;
+
+alter table public.coach_note_replies
+  add column if not exists sender_role text check (sender_role in ('coach', 'athlete'));
+
+update public.coach_note_replies
+set sender_id = athlete_id,
+    sender_role = 'athlete'
+where sender_id is null
+   or sender_role is null;
+
 alter table public.profiles enable row level security;
 alter table public.coach_athlete_links enable row level security;
 alter table public.coach_notes enable row level security;
+alter table public.coach_note_replies enable row level security;
 
 create or replace function public.is_linked_coach(target_athlete_id uuid)
 returns boolean
@@ -83,6 +108,52 @@ drop policy if exists "coach_notes_delete_own" on public.coach_notes;
 create policy "coach_notes_delete_own"
 on public.coach_notes for delete
 using (coach_id = auth.uid());
+
+drop policy if exists "coach_note_replies_select_related" on public.coach_note_replies;
+create policy "coach_note_replies_select_related"
+on public.coach_note_replies for select
+using (coach_id = auth.uid() or athlete_id = auth.uid());
+
+drop policy if exists "coach_note_replies_insert_by_athlete" on public.coach_note_replies;
+drop policy if exists "coach_note_replies_insert_related" on public.coach_note_replies;
+create policy "coach_note_replies_insert_related"
+on public.coach_note_replies for insert
+with check (
+  sender_id = auth.uid()
+  and sender_role in ('coach', 'athlete')
+  and (
+    (sender_role = 'athlete' and athlete_id = auth.uid())
+    or
+    (sender_role = 'coach' and coach_id = auth.uid() and public.is_linked_coach(athlete_id))
+  )
+  and exists (
+    select 1
+    from public.coach_notes n
+    where n.id = note_id
+      and n.athlete_id = coach_note_replies.athlete_id
+      and n.coach_id = coach_note_replies.coach_id
+  )
+);
+
+drop policy if exists "coach_note_replies_update_by_athlete" on public.coach_note_replies;
+drop policy if exists "coach_note_replies_update_own" on public.coach_note_replies;
+create policy "coach_note_replies_update_own"
+on public.coach_note_replies for update
+using (sender_id = auth.uid())
+with check (sender_id = auth.uid());
+
+drop policy if exists "coach_note_replies_delete_by_athlete" on public.coach_note_replies;
+drop policy if exists "coach_note_replies_delete_own" on public.coach_note_replies;
+create policy "coach_note_replies_delete_own"
+on public.coach_note_replies for delete
+using (sender_id = auth.uid());
+
+do $$
+begin
+  alter publication supabase_realtime add table public.coach_note_replies;
+exception
+  when duplicate_object then null;
+end $$;
 
 -- Coach read access to linked athlete data.
 -- Existing athlete self-access policies should remain as-is; these are additive coach policies.

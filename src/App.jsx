@@ -18,10 +18,12 @@ import StrengthPage from './pages/StrengthPage'
 import ProfilePage from './pages/ProfilePage'
 import CoachPage from './pages/CoachPage'
 
-function PrivateRoute({ children }) {
-  const { user, loading } = useAuthStore()
+function PrivateRoute({ children, audience = 'athlete' }) {
+  const { user, loading, role } = useAuthStore()
   if (loading) return <div className="min-h-screen bg-[#0f1117] flex items-center justify-center text-slate-400">로딩 중...</div>
   if (!user) return <Navigate to="/login" replace />
+  if (audience === 'athlete' && role === 'coach') return <Navigate to="/coach" replace />
+  if (audience === 'coach' && role === 'athlete') return <Navigate to="/" replace />
   return <Layout>{children}</Layout>
 }
 
@@ -66,7 +68,7 @@ export default function App() {
         <Route path="/pace" element={<PrivateRoute><PacePage /></PrivateRoute>} />
         <Route path="/strength" element={<PrivateRoute><StrengthPage /></PrivateRoute>} />
         <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-        <Route path="/coach" element={<PrivateRoute><CoachPage /></PrivateRoute>} />
+        <Route path="/coach" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

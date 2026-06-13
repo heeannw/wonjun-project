@@ -66,8 +66,16 @@ export default function CoachPage() {
         .select('*')
         .in('user_id', athleteIds)
 
-      setAthletes(profiles || [])
-      setSelectedAthleteId((current) => current || profiles?.[0]?.user_id || athleteIds[0])
+      const profileMap = Object.fromEntries((profiles || []).map((profile) => [profile.user_id, profile]))
+      const linkedAthletes = athleteIds.map((athleteId) => profileMap[athleteId] || {
+        user_id: athleteId,
+        name: '연결 선수',
+        main_events: [],
+        goal: '',
+        team: '',
+      })
+      setAthletes(linkedAthletes)
+      setSelectedAthleteId((current) => current || linkedAthletes[0]?.user_id || athleteIds[0])
     } catch (error) {
       setSetupError(error.message || '코치 권한 데이터를 불러오지 못했습니다.')
     } finally {
@@ -228,7 +236,7 @@ export default function CoachPage() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div id="coach-overview" className="mb-6 scroll-mt-6">
         <h1 className="text-xl font-bold text-white">코치 보드</h1>
         <p className="text-slate-400 text-sm mt-0.5">연결된 선수의 상태를 코치 관점으로 확인합니다</p>
       </div>
@@ -249,22 +257,46 @@ export default function CoachPage() {
       )}
 
       <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-4 mb-6">
-        <label className="block text-xs text-slate-400 mb-2">선수 선택</label>
-        {athletes.length ? (
-          <select
-            value={selectedAthleteId}
-            onChange={(event) => setSelectedAthleteId(event.target.value)}
-            className="w-full max-w-sm bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-          >
-            {athletes.map((athlete) => (
-              <option key={athlete.user_id} value={athlete.user_id}>
-                {athlete.name || athlete.user_id}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <p className="text-sm text-slate-500">연결된 선수가 없습니다.</p>
-        )}
+        <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-2">선수 선택</label>
+            {athletes.length ? (
+              <select
+                value={selectedAthleteId}
+                onChange={(event) => setSelectedAthleteId(event.target.value)}
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              >
+                {athletes.map((athlete) => (
+                  <option key={athlete.user_id} value={athlete.user_id}>
+                    {athlete.name || athlete.user_id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-slate-500">연결된 선수가 없습니다.</p>
+            )}
+          </div>
+
+          {selectedAthlete && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-[#0f1117] border border-slate-800 rounded-lg px-3 py-2">
+                <p className="text-xs text-slate-500 mb-1">선수</p>
+                <p className="text-sm font-semibold text-white">{selectedAthlete.name || '이름 없음'}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{selectedAthlete.team || '소속 미입력'}</p>
+              </div>
+              <div className="bg-[#0f1117] border border-slate-800 rounded-lg px-3 py-2">
+                <p className="text-xs text-slate-500 mb-1">전문 종목</p>
+                <p className="text-sm font-semibold text-white truncate">
+                  {selectedAthlete.main_events?.length ? selectedAthlete.main_events.join(', ') : '미입력'}
+                </p>
+              </div>
+              <div className="bg-[#0f1117] border border-slate-800 rounded-lg px-3 py-2">
+                <p className="text-xs text-slate-500 mb-1">목표</p>
+                <p className="text-sm font-semibold text-white truncate">{selectedAthlete.goal || '미입력'}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {selectedAthlete && (
@@ -284,7 +316,7 @@ export default function CoachPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div id="coach-status" className="grid grid-cols-1 xl:grid-cols-2 gap-4 scroll-mt-6">
             <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <BarChart3 size={16} className="text-green-400" />
@@ -301,7 +333,7 @@ export default function CoachPage() {
               </div>
             </section>
 
-            <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+            <section id="coach-risk" className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5 scroll-mt-6">
               <div className="flex items-center gap-2 mb-3">
                 <AlertTriangle size={16} className="text-red-400" />
                 <h2 className="text-sm font-semibold text-slate-300">위험 신호</h2>
@@ -315,7 +347,7 @@ export default function CoachPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+            <section id="coach-checkpoints" className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5 scroll-mt-6">
               <div className="flex items-center gap-2 mb-3">
                 <ClipboardCheck size={16} className="text-blue-400" />
                 <h2 className="text-sm font-semibold text-slate-300">코칭 체크포인트</h2>
@@ -327,7 +359,7 @@ export default function CoachPage() {
               </div>
             </section>
 
-            <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+            <section id="coach-race" className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5 scroll-mt-6">
               <div className="flex items-center gap-2 mb-3">
                 <Trophy size={16} className="text-yellow-400" />
                 <h2 className="text-sm font-semibold text-slate-300">시합 분석</h2>
@@ -341,7 +373,7 @@ export default function CoachPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+            <section id="coach-report" className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5 scroll-mt-6">
               <div className="flex items-center gap-2 mb-3">
                 <FileText size={16} className="text-purple-400" />
                 <h2 className="text-sm font-semibold text-slate-300">월간 코치 리포트</h2>
@@ -353,7 +385,7 @@ export default function CoachPage() {
               </div>
             </section>
 
-            <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+            <section id="coach-inputs" className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5 scroll-mt-6">
               <div className="flex items-center gap-2 mb-3">
                 <ClipboardCheck size={16} className="text-green-400" />
                 <h2 className="text-sm font-semibold text-slate-300">선수 입력 현황</h2>
@@ -371,7 +403,7 @@ export default function CoachPage() {
             </section>
           </div>
 
-          <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+          <section id="coach-notes" className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5 scroll-mt-6">
             <div className="flex items-center gap-2 mb-4">
               <MessageSquare size={16} className="text-purple-400" />
               <h2 className="text-sm font-semibold text-slate-300">코치 메모</h2>

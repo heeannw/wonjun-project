@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, Trophy, Brain, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell, UserCircle, Moon, Sun, ClipboardCheck } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Trophy, Brain, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell, UserCircle, Moon, Sun, ClipboardCheck, AlertTriangle, BarChart3, MessageSquare, ListChecks } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 const navItems = [
@@ -18,16 +18,36 @@ const navItems = [
   { to: '/coach', icon: ClipboardCheck, label: '코치 보드' },
 ]
 
+const coachNavItems = [
+  { id: 'coach-overview', icon: ClipboardCheck, label: '코치 홈' },
+  { id: 'coach-status', icon: BarChart3, label: '선수 상태' },
+  { id: 'coach-risk', icon: AlertTriangle, label: '위험 신호' },
+  { id: 'coach-checkpoints', icon: ListChecks, label: '체크포인트' },
+  { id: 'coach-race', icon: Trophy, label: '시합 분석' },
+  { id: 'coach-report', icon: FileText, label: '월간 리포트' },
+  { id: 'coach-inputs', icon: Brain, label: '입력 현황' },
+  { id: 'coach-notes', icon: MessageSquare, label: '코치 메모' },
+]
+
 export default function Layout({ children }) {
   const signOut = useAuthStore((s) => s.signOut)
   const role = useAuthStore((s) => s.role)
   const navigate = useNavigate()
   const location = useLocation()
   const [theme, setTheme] = useState(() => localStorage.getItem('wonjun-theme') || 'dark')
-  const showThemeToggle = location.pathname === '/'
+  const showThemeToggle = location.pathname === '/' || location.pathname === '/coach'
   const visibleNavItems = role === 'coach'
     ? navItems.filter((item) => item.to === '/coach')
     : navItems.filter((item) => item.to !== '/coach')
+
+  const scrollToCoachSection = (id) => {
+    if (location.pathname !== '/coach') {
+      navigate('/coach')
+      setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+      return
+    }
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -78,23 +98,40 @@ export default function Layout({ children }) {
         </div>
 
         <nav className="flex-1 p-3">
-          {visibleNavItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-sm transition ${
-                  isActive
-                    ? 'bg-blue-600/20 text-blue-400 font-medium'
-                    : 'text-slate-400 hover:bg-slate-700/40 hover:text-white'
-                }`
-              }
-            >
-              <Icon size={18} />
-              {label}
-            </NavLink>
-          ))}
+          {role === 'coach' ? (
+            <>
+              <p className="px-3 mb-2 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Coach Board</p>
+              {coachNavItems.map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => scrollToCoachSection(id)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-sm transition w-full text-left text-slate-400 hover:bg-slate-700/40 hover:text-white"
+                >
+                  <Icon size={18} />
+                  {label}
+                </button>
+              ))}
+            </>
+          ) : (
+            visibleNavItems.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-sm transition ${
+                    isActive
+                      ? 'bg-blue-600/20 text-blue-400 font-medium'
+                      : 'text-slate-400 hover:bg-slate-700/40 hover:text-white'
+                  }`
+                }
+              >
+                <Icon size={18} />
+                {label}
+              </NavLink>
+            ))
+          )}
         </nav>
 
         <div className="p-3 border-t border-slate-700/50">
@@ -127,14 +164,20 @@ export default function Layout({ children }) {
       {/* Mobile bottom navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#1a1d27]/95 backdrop-blur border-t border-slate-700/50 px-2 py-2">
         <div className="flex gap-1 overflow-x-auto mobile-nav-scroll pb-1">
-          {visibleNavItems.map(({ to, icon: Icon, label }) => (
+          {(role === 'coach' ? coachNavItems : visibleNavItems).map(({ to, id, icon: Icon, label }) => (
             <NavLink
-              key={to}
-              to={to}
+              key={to || id}
+              to={to || '/coach'}
               end={to === '/'}
+              onClick={(event) => {
+                if (id) {
+                  event.preventDefault()
+                  scrollToCoachSection(id)
+                }
+              }}
               className={({ isActive }) =>
                 `flex min-w-[72px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] transition ${
-                  isActive
+                  isActive && !id
                     ? 'bg-blue-600/20 text-blue-400 font-semibold'
                     : 'text-slate-400'
                 }`

@@ -133,6 +133,54 @@ ${pbSummary || '기록 없음'}
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '플랜 생성 실패'
 }
 
+export async function getCompetitionEvaluation(competition, results, pbs, goals) {
+  const resultSummary = results.map((r) =>
+    `${r.event}: ${r.record_time ?? '기록없음'} / ${r.rank ? r.rank + '위' : '순위없음'}${r.heat ? ` (${r.heat})` : ''}${r.notes ? ` — ${r.notes}` : ''}`
+  ).join('\n')
+
+  const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
+
+  const goalSummary = Object.entries(goals).map(([ev, g]) => `${ev}: 목표 ${g.target_time}`).join('\n') || '목표 없음'
+
+  const prompt = `
+너는 수영 장거리 전문 코치야. 원준 선수(18세, 자유형 장거리, 2028 LA 올림픽 목표)의 시합 결과를 분석해줘.
+
+[시합 정보]
+대회명: ${competition.name}
+날짜: ${competition.start_date}
+풀: ${competition.pool_type}
+
+[시합 결과]
+${resultSummary || '결과 없음'}
+
+[현재 PB]
+${pbSummary || '없음'}
+
+[개인 목표]
+${goalSummary}
+
+다음 4가지를 분석해줘:
+1. **결과 총평**: 목표 대비 성과, PB 경신 여부 (2문장)
+2. **잘한 점**: 구체적으로 (1~2문장)
+3. **개선할 점**: 레이스 전략, 체력, 기술 관점 (1~2문장)
+4. **다음 시합 준비 방향**: 구체적 권고 (1~2문장)
+
+전체 8~12문장, 한국어로, 냉철하지만 격려하는 톤으로 작성해.
+`.trim()
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+    }),
+  })
+  if (!res.ok) throw new Error('Gemini API 오류')
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '평가 생성 실패'
+}
+
 export async function getCompetitionPostPlan(competition, pbs) {
   const pbSummary = pbs.slice(0, 8).map((p) => `${p.event}: ${p.record_time}`).join('\n')
   const events = competition.events?.join(', ') || '미정'

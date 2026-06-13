@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, BookOpen, Trophy, Brain, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell, UserCircle, Moon, Sun } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
@@ -20,7 +20,9 @@ const navItems = [
 export default function Layout({ children }) {
   const signOut = useAuthStore((s) => s.signOut)
   const navigate = useNavigate()
+  const location = useLocation()
   const [theme, setTheme] = useState(() => localStorage.getItem('wonjun-theme') || 'dark')
+  const showThemeToggle = location.pathname === '/'
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -44,15 +46,17 @@ export default function Layout({ children }) {
               <p className="text-slate-500 text-xs truncate">2028 LA 올림픽</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
-            className="flex items-center gap-1.5 rounded-full border border-slate-700/50 bg-[#0f1117] px-3 py-2 text-xs font-semibold text-slate-300 transition theme-toggle shrink-0"
-            title={theme === 'dark' ? '화이트 버전으로 변경' : '블랙 버전으로 변경'}
-          >
-            {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
-            {theme === 'dark' ? '블랙' : '화이트'}
-          </button>
+          {showThemeToggle && (
+            <button
+              type="button"
+              onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+              className="flex items-center gap-1.5 rounded-full border border-slate-700/50 bg-[#0f1117] px-3 py-2 text-xs font-semibold text-slate-300 transition theme-toggle shrink-0"
+              title={theme === 'dark' ? '화이트 버전으로 변경' : '블랙 버전으로 변경'}
+            >
+              {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
+              {theme === 'dark' ? '블랙' : '화이트'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -101,15 +105,17 @@ export default function Layout({ children }) {
 
       {/* Main */}
       <main className="w-full md:ml-56 flex-1 px-4 py-5 pt-20 pb-24 md:p-6 md:min-h-screen overflow-x-hidden">
-        <button
-          type="button"
-          onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
-          className="hidden md:flex fixed right-6 top-5 z-40 items-center gap-2 rounded-full border border-slate-700/50 bg-[#1a1d27] px-3 py-2 text-xs font-semibold text-slate-300 shadow-lg transition hover:border-blue-500/50 hover:text-white theme-toggle"
-          title={theme === 'dark' ? '화이트 버전으로 변경' : '블랙 버전으로 변경'}
-        >
-          {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
-          {theme === 'dark' ? '블랙' : '화이트'}
-        </button>
+        {showThemeToggle && (
+          <button
+            type="button"
+            onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+            className="hidden md:flex fixed right-6 top-5 z-40 items-center gap-2 rounded-full border border-slate-700/50 bg-[#1a1d27] px-3 py-2 text-xs font-semibold text-slate-300 shadow-lg transition hover:border-blue-500/50 hover:text-white theme-toggle"
+            title={theme === 'dark' ? '화이트 버전으로 변경' : '블랙 버전으로 변경'}
+          >
+            {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
+            {theme === 'dark' ? '블랙' : '화이트'}
+          </button>
+        )}
         {children}
       </main>
 

@@ -1,6 +1,24 @@
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 const API_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${API_KEY}`
 
+function getGeminiErrorMessage(status, err) {
+  const message = err?.error?.message || ''
+  const reason = err?.error?.status || ''
+
+  if (status === 429) {
+    const detail = message || reason
+    return detail
+      ? `Gemini 사용량 제한에 걸렸습니다: ${detail}`
+      : 'Gemini 사용량 제한에 걸렸습니다. 잠시 후 다시 시도해주세요.'
+  }
+
+  if (status === 400 || status === 403) {
+    return message || `Gemini API 키 또는 권한 오류입니다. (${status})`
+  }
+
+  return message || `Gemini API 오류 ${status}`
+}
+
 function calcAge(birthDate) {
   if (!birthDate) return new Date().getFullYear() - 2008
   const today = new Date()
@@ -33,6 +51,10 @@ function ctx(profile) {
 }
 
 async function callGemini(prompt, maxTokens = 800) {
+  if (!API_KEY) {
+    throw new Error('VITE_GEMINI_API_KEY가 설정되어 있지 않습니다.')
+  }
+
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -43,8 +65,7 @@ async function callGemini(prompt, maxTokens = 800) {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    if (res.status === 429) throw new Error('요청이 너무 많습니다. 1분 후 다시 시도해주세요.')
-    throw new Error(err?.error?.message || `API 오류 ${res.status}`)
+    throw new Error(getGeminiErrorMessage(res.status, err))
   }
   const data = await res.json()
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '생성 실패'

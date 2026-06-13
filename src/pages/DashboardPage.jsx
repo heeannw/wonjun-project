@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import { getTrendAnalysis, getGrowthSimulation } from '../lib/gemini'
 import { useProfileStore } from '../store/profileStore'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   BarChart, Bar, Cell
 } from 'recharts'
 import { Flame, Moon, Activity, Target, Trophy, BrainCircuit, RefreshCw, TrendingUp, SlidersHorizontal, X } from 'lucide-react'
@@ -55,6 +55,8 @@ export default function DashboardPage() {
   const [pbChartEvent, setPbChartEvent] = useState('')
   const [finaFilter, setFinaFilter] = useState([]) // 선택된 종목 (최대 5개)
   const [showFinaFilter, setShowFinaFilter] = useState(false)
+  const trendRequestRef = useRef(false)
+  const simulationRequestRef = useRef(false)
 
   // pbs 로드 후 기록 2개 이상인 종목 중 가장 많은 종목 자동 선택
   useEffect(() => {
@@ -188,6 +190,8 @@ export default function DashboardPage() {
   }
 
   const runSimulation = async () => {
+    if (simulationRequestRef.current || aiCooldown > 0) return
+    simulationRequestRef.current = true
     setSimulating(true)
     setSimError('')
     try {
@@ -197,12 +201,14 @@ export default function DashboardPage() {
       setSimError(e.message || '시뮬레이션 오류가 발생했습니다.')
       startCooldown(e)
     } finally {
+      simulationRequestRef.current = false
       setSimulating(false)
     }
   }
 
   const runTrendAnalysis = async () => {
-    if (logs.length === 0) return
+    if (logs.length === 0 || trendRequestRef.current || aiCooldown > 0) return
+    trendRequestRef.current = true
     setAnalyzingTrend(true)
     setTrendError('')
     try {
@@ -212,6 +218,7 @@ export default function DashboardPage() {
       setTrendError(e.message || '분석 중 오류가 발생했습니다.')
       startCooldown(e)
     } finally {
+      trendRequestRef.current = false
       setAnalyzingTrend(false)
     }
   }
@@ -386,10 +393,14 @@ export default function DashboardPage() {
             <p className="text-slate-500 text-sm">PB 기록을 2개 이상 입력하면 그래프가 표시됩니다.</p>
           ) : (
             <ResponsiveContainer width="100%" height={160}>
-              <LineChart data={pbChartData}>
+              <LineChart
+                data={pbChartData}
+                margin={{ top: 8, right: 32, left: -8, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
                 <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} />
                 <YAxis
+                  width={44}
                   domain={pbYDomain}
                   tick={{ fill: '#64748b', fontSize: 10 }}
                   tickFormatter={(v) => {
@@ -426,17 +437,35 @@ export default function DashboardPage() {
         <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
           <h2 className="text-sm font-semibold text-slate-300 mb-4">훈련 추이 (최근 2주)</h2>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={trainingChartData}>
+            <LineChart data={trainingChartData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
               <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} />
-              <YAxis tick={{ fill: '#64748b', fontSize: 11 }} />
+              <YAxis
+                yAxisId="distance"
+                tick={{ fill: '#64748b', fontSize: 11 }}
+                tickFormatter={(v) => `${(v / 1000).toFixed(v >= 1000 ? 0 : 1)}k`}
+              />
+              <YAxis
+                yAxisId="score"
+                orientation="right"
+                domain={[0, 10]}
+                tick={{ fill: '#64748b', fontSize: 11 }}
+              />
               <Tooltip
                 contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 8 }}
                 labelStyle={{ color: '#94a3b8' }}
+                formatter={(value, name) => {
+                  if (name === '거리') return [`${value.toLocaleString()}m`, name]
+                  return [value, name]
+                }}
               />
-              <Line type="monotone" dataKey="거리" stroke="#3b82f6" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="RPE" stroke="#f97316" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="컨디션" stroke="#a855f7" strokeWidth={2} dot={false} />
+              <Legend
+                iconType="line"
+                wrapperStyle={{ color: '#94a3b8', fontSize: 12, paddingTop: 8 }}
+              />
+              <Line yAxisId="distance" type="monotone" dataKey="거리" stroke="#3b82f6" strokeWidth={2} dot={false} name="훈련 거리(m)" />
+              <Line yAxisId="score" type="monotone" dataKey="RPE" stroke="#f97316" strokeWidth={2} dot={false} name="RPE(1-10)" />
+              <Line yAxisId="score" type="monotone" dataKey="컨디션" stroke="#a855f7" strokeWidth={2} dot={false} name="컨디션(1-10)" />
             </LineChart>
           </ResponsiveContainer>
         </div>

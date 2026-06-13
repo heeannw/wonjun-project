@@ -437,25 +437,35 @@ export default function RecordsPage() {
                         <TrendingDown size={13} className="text-green-400" />
                         <p className="text-xs text-slate-400 font-medium">기록 성장 그래프</p>
                       </div>
-                      <div className="space-y-4">
+                      <div className="flex flex-col gap-4">
                         {group.events.filter((ev) => history(ev).length > 1).map((ev) => {
                           const hist = history(ev)
-                          const chartData = hist.map((r) => ({
-                            date: r.achieved_date.slice(2),
-                            초: Math.round(timeToSeconds(r.record_time) * 100) / 100,
-                            기록: r.record_time,
-                            fina: calcFinaPoints(ev, r.record_time) ?? '-',
-                          }))
+                          const pbSec = Math.min(...hist.map(r => timeToSeconds(r.record_time)))
+                          const chartData = hist.map((r) => {
+                            const sec = Math.round(timeToSeconds(r.record_time) * 100) / 100
+                            return {
+                              date: r.achieved_date.slice(2),
+                              초: sec,
+                              기록: r.record_time,
+                              fina: calcFinaPoints(ev, r.record_time) ?? '-',
+                              isPb: sec === Math.round(pbSec * 100) / 100,
+                            }
+                          })
                           const improvement = (
                             timeToSeconds(hist[0].record_time) - timeToSeconds(hist[hist.length - 1].record_time)
                           ).toFixed(2)
+                          const CustomDot = (props) => {
+                            const { cx, cy, payload } = props
+                            if (payload.isPb) return <circle cx={cx} cy={cy} r={6} fill="#facc15" stroke="#1a1d27" strokeWidth={2} />
+                            return <circle cx={cx} cy={cy} r={3} fill="#22c55e" />
+                          }
                           return (
-                            <div key={ev} className="bg-[#0f1117] rounded-lg p-3">
+                            <div key={ev} className="bg-[#0f1117] rounded-lg p-3 w-full">
                               <div className="flex justify-between items-center mb-2">
                                 <p className="text-xs text-slate-300 font-medium">{ev}</p>
                                 <span className="text-xs text-green-400 font-semibold">▼{improvement}초</span>
                               </div>
-                              <ResponsiveContainer width="100%" height={110}>
+                              <ResponsiveContainer width="100%" height={120}>
                                 <LineChart data={chartData}>
                                   <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
                                   <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
@@ -470,20 +480,19 @@ export default function RecordsPage() {
                                     }}
                                   />
                                   <Tooltip
-                                    contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 6, fontSize: 11 }}
                                     content={({ active, payload }) => {
                                       if (!active || !payload?.length) return null
                                       const d = payload[0].payload
                                       return (
-                                        <div style={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
+                                        <div style={{ backgroundColor: '#1a1d27', border: `1px solid ${d.isPb ? '#facc15' : '#334155'}`, borderRadius: 6, padding: '6px 10px', fontSize: 11 }}>
                                           <p style={{ color: '#94a3b8' }}>{d.date}</p>
-                                          <p style={{ color: '#22c55e', fontWeight: 600 }}>{d.기록}</p>
+                                          <p style={{ color: d.isPb ? '#facc15' : '#22c55e', fontWeight: 600 }}>{d.기록}{d.isPb ? ' ★ PB' : ''}</p>
                                           <p style={{ color: '#60a5fa' }}>FINA {d.fina}pt</p>
                                         </div>
                                       )
                                     }}
                                   />
-                                  <Line type="monotone" dataKey="초" stroke="#22c55e" strokeWidth={2} dot={{ fill: '#22c55e', r: 3 }} />
+                                  <Line type="monotone" dataKey="초" stroke="#22c55e" strokeWidth={2} dot={<CustomDot />} />
                                 </LineChart>
                               </ResponsiveContainer>
                             </div>

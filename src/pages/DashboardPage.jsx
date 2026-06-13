@@ -129,6 +129,24 @@ export default function DashboardPage() {
     ? calcFinaPoints('자유형 1500m', latestPbs['자유형 1500m'].record_time)
     : null
 
+  // 올림픽 기준 달성 시나리오
+  const OLYMPIC_STANDARDS = {
+    '자유형 400m':  { target: '3:43.00', targetSec: 223.0 },
+    '자유형 800m':  { target: '7:50.00', targetSec: 470.0 },
+    '자유형 1500m': { target: '14:52.00', targetSec: 892.0 },
+    '개인혼영 400m': { target: '4:12.00', targetSec: 252.0 },
+  }
+  const monthsLeft = daysLeft / 30
+  const scenarios = Object.entries(OLYMPIC_STANDARDS).map(([event, { target, targetSec }]) => {
+    const pb = latestPbs[event]
+    if (!pb) return null
+    const pbSec = timeToSeconds(pb.record_time)
+    const gapSec = pbSec - targetSec
+    const monthlyNeeded = gapSec > 0 ? (gapSec / monthsLeft).toFixed(2) : 0
+    const achieved = gapSec <= 0
+    return { event, target, pbSec, targetSec, gapSec, monthlyNeeded, achieved }
+  }).filter(Boolean)
+
   return (
     <div>
       <div className="mb-6">
@@ -297,6 +315,40 @@ export default function DashboardPage() {
           </p>
         )}
       </div>
+
+      {/* 올림픽 달성 시나리오 */}
+      {scenarios.length > 0 && (
+        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-lg">🏅</span>
+            <h2 className="text-sm font-semibold text-slate-300">올림픽 기준 달성 시나리오</h2>
+            <span className="text-xs text-slate-500 ml-1">2028 LA 기준</span>
+          </div>
+          <div className="space-y-3">
+            {scenarios.map(({ event, target, gapSec, monthlyNeeded, achieved }) => (
+              <div key={event} className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-28 shrink-0">{event}</span>
+                  <span className="text-xs text-slate-500">→ {target}</span>
+                </div>
+                {achieved ? (
+                  <span className="text-xs font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded">기준 달성!</span>
+                ) : (
+                  <div className="text-right">
+                    <span className="text-xs text-orange-400 font-semibold">
+                      월 {monthlyNeeded}초씩 단축 필요
+                    </span>
+                    <span className="text-xs text-slate-600 ml-2">(현재 -{gapSec.toFixed(2)}초)</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-600 mt-3 border-t border-slate-700/30 pt-3">
+            2028 LA 올림픽까지 {Math.round(monthsLeft)}개월 남음
+          </p>
+        </div>
+      )}
 
       {/* Recent logs */}
       <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">

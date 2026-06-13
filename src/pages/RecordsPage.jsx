@@ -55,6 +55,7 @@ export default function RecordsPage() {
   const [showGoalForm, setShowGoalForm] = useState(false)
   const [expandedGroup, setExpandedGroup] = useState('자유형')
   const [showHistory, setShowHistory] = useState({})
+  const [celebrate, setCelebrate] = useState(null) // { event, oldTime, newTime }
 
   const fetchRecords = async () => {
     const { data } = await supabase
@@ -76,10 +77,14 @@ export default function RecordsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const currentPb = latestPb(form.event)
     await supabase.from('personal_bests').insert({ ...form, user_id: user.id })
     setForm(defaultForm)
     setShowForm(false)
-    fetchRecords()
+    await fetchRecords()
+    if (!currentPb || timeToSeconds(form.record_time) < timeToSeconds(currentPb.record_time)) {
+      setCelebrate({ event: form.event, oldTime: currentPb?.record_time ?? null, newTime: form.record_time })
+    }
   }
 
   const handleDelete = async (id) => {
@@ -144,6 +149,35 @@ export default function RecordsPage() {
 
   return (
     <div>
+      {/* PB 축하 모달 */}
+      {celebrate && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setCelebrate(null)}>
+          <div className="bg-[#1a1d27] border border-yellow-500/40 rounded-2xl p-8 text-center max-w-sm mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-5xl mb-4">🏆</div>
+            <h2 className="text-xl font-bold text-yellow-400 mb-1">신기록 달성!</h2>
+            <p className="text-slate-300 text-sm mb-4">{celebrate.event}</p>
+            <div className="bg-[#0f1117] rounded-xl p-4 mb-4">
+              {celebrate.oldTime && (
+                <p className="text-slate-500 text-sm line-through mb-1">{celebrate.oldTime}</p>
+              )}
+              <p className="text-2xl font-bold text-white">{celebrate.newTime}</p>
+              {celebrate.oldTime && (
+                <p className="text-green-400 text-sm mt-1 font-semibold">
+                  ▼ {(timeToSeconds(celebrate.oldTime) - timeToSeconds(celebrate.newTime)).toFixed(2)}초 단축
+                </p>
+              )}
+            </div>
+            <p className="text-slate-400 text-xs mb-5">2028 LA 올림픽을 향해 계속 나아가자!</p>
+            <button
+              onClick={() => setCelebrate(null)}
+              className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-6 py-2 rounded-lg transition text-sm"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-white">PB 기록 관리</h1>

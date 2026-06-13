@@ -20,10 +20,14 @@ const navItems = [
 
 export default function Layout({ children }) {
   const signOut = useAuthStore((s) => s.signOut)
+  const role = useAuthStore((s) => s.role)
   const navigate = useNavigate()
   const location = useLocation()
   const [theme, setTheme] = useState(() => localStorage.getItem('wonjun-theme') || 'dark')
   const showThemeToggle = location.pathname === '/'
+  const visibleNavItems = role === 'coach'
+    ? navItems.filter((item) => item.to === '/coach')
+    : navItems.filter((item) => item.to !== '/coach')
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -74,7 +78,7 @@ export default function Layout({ children }) {
         </div>
 
         <nav className="flex-1 p-3">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {visibleNavItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -123,7 +127,7 @@ export default function Layout({ children }) {
       {/* Mobile bottom navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#1a1d27]/95 backdrop-blur border-t border-slate-700/50 px-2 py-2">
         <div className="flex gap-1 overflow-x-auto mobile-nav-scroll pb-1">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {visibleNavItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}

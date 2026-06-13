@@ -8,7 +8,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
 } from 'recharts'
-import { Flame, Moon, Activity, Target, Trophy, BrainCircuit, RefreshCw, TrendingUp } from 'lucide-react'
+import { Flame, Moon, Activity, Target, Trophy, BrainCircuit, RefreshCw, TrendingUp, SlidersHorizontal, X } from 'lucide-react'
 
 const OLYMPIC_TARGETS = {
   '자유형 400m':  { target: '3:43.00', targetSec: 223.0 },
@@ -52,6 +52,16 @@ export default function DashboardPage() {
   const [simulating, setSimulating] = useState(false)
   const [simError, setSimError] = useState('')
   const [pbChartEvent, setPbChartEvent] = useState('')
+  const [finaFilter, setFinaFilter] = useState([]) // 선택된 종목 (최대 5개)
+  const [showFinaFilter, setShowFinaFilter] = useState(false)
+
+  // pbs 로드 후 차트 종목 자동 선택
+  useEffect(() => {
+    if (pbs.length > 0 && !pbChartEvent) {
+      const events = [...new Set(pbs.map(p => p.event))]
+      setPbChartEvent(events[0] || '')
+    }
+  }, [pbs])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -95,13 +105,17 @@ export default function DashboardPage() {
   })
 
   // FINA 포인트 데이터 (모든 종목)
-  const allPbEvents = Object.keys(latestPbs)
-  const finaData = allPbEvents.map((event) => {
+  const finaAll = Object.keys(latestPbs).map((event) => {
     const pb = latestPbs[event]
     const points = pb ? calcFinaPoints(event, pb.record_time) : null
     if (!points) return null
     return { event, points, record: pb.record_time }
   }).filter(Boolean).sort((a, b) => b.points - a.points)
+
+  // FINA 표시할 종목 (필터 선택 없으면 상위 5개)
+  const finaData = finaFilter.length > 0
+    ? finaAll.filter(d => finaFilter.includes(d.event))
+    : finaAll.slice(0, 5)
 
   // PB 변화 그래프 - 선택된 종목
   const pbEvents = [...new Set(pbs.map(p => p.event))]
@@ -247,16 +261,63 @@ export default function DashboardPage() {
       {/* FINA Points + PB 변화 */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         {/* FINA 포인트 */}
-        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy size={15} className="text-yellow-400" />
-            <h2 className="text-sm font-semibold text-slate-300">FINA 포인트</h2>
-            <span className="text-xs text-slate-500 ml-1">전체 종목</span>
+        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 relative">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Trophy size={15} className="text-yellow-400" />
+              <h2 className="text-sm font-semibold text-slate-300">FINA 포인트</h2>
+            </div>
+            {finaAll.length > 0 && (
+              <button
+                onClick={() => setShowFinaFilter(v => !v)}
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition ${showFinaFilter ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+              >
+                <SlidersHorizontal size={12} />
+                {finaFilter.length > 0 ? `${finaFilter.length}개 선택` : '필터'}
+              </button>
+            )}
           </div>
+
+          {/* 필터 드롭다운 */}
+          {showFinaFilter && (
+            <div className="absolute right-5 top-14 z-20 bg-[#0f1117] border border-slate-700 rounded-xl p-3 shadow-xl w-52">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-slate-400">종목 선택 (최대 5개)</p>
+                <button onClick={() => setShowFinaFilter(false)}><X size={12} className="text-slate-500 hover:text-white" /></button>
+              </div>
+              <div className="space-y-1">
+                {finaAll.map(({ event, points }) => {
+                  const checked = finaFilter.includes(event)
+                  return (
+                    <label key={event} className="flex items-center gap-2 cursor-pointer py-1 px-1.5 rounded hover:bg-slate-700/40">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          if (checked) {
+                            setFinaFilter(f => f.filter(e => e !== event))
+                          } else if (finaFilter.length < 5) {
+                            setFinaFilter(f => [...f, event])
+                          }
+                        }}
+                        className="accent-blue-500"
+                      />
+                      <span className="text-xs text-slate-300 flex-1">{event}</span>
+                      <span className="text-[10px] text-slate-500">{points}pts</span>
+                    </label>
+                  )
+                })}
+              </div>
+              {finaFilter.length > 0 && (
+                <button onClick={() => setFinaFilter([])} className="mt-2 w-full text-xs text-slate-500 hover:text-slate-300 text-center">초기화</button>
+              )}
+            </div>
+          )}
+
           {finaData.length === 0 ? (
             <p className="text-slate-500 text-sm">PB 기록 페이지에서 기록을 입력하면 표시됩니다.</p>
           ) : (
-            <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
+            <div className="space-y-3">
               {finaData.map(({ event, points, record }) => (
                 <div key={event}>
                   <div className="flex justify-between text-xs mb-1">
@@ -301,9 +362,13 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
                 <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} />
                 <YAxis
-                  domain={['auto', 'auto']}
+                  domain={([min, max]) => {
+                    const pad = (max - min) * 0.3 || 5
+                    return [min - pad, max + pad]
+                  }}
                   tick={{ fill: '#64748b', fontSize: 10 }}
                   tickFormatter={(v) => {
+                    if (v < 0) return ''
                     const m = Math.floor(v / 60)
                     const s = (v % 60).toFixed(0).padStart(2, '0')
                     return m > 0 ? `${m}:${s}` : `${s}`

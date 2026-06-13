@@ -26,6 +26,33 @@ export default function CoachFeedbackPage() {
     fetchFeedbacks()
   }, [user?.id])
 
+  useEffect(() => {
+    if (!user?.id) return undefined
+
+    const channel = supabase
+      .channel(`coach-notes-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'coach_notes',
+          filter: `athlete_id=eq.${user.id}`,
+        },
+        (payload) => {
+          setFeedbacks((current) => {
+            if (current.some((item) => item.id === payload.new.id)) return current
+            return [payload.new, ...current]
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id])
+
   const grouped = useMemo(() => {
     return categoryOrder.map((category) => ({
       category,

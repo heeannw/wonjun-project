@@ -160,8 +160,8 @@ export default function TrainingPage() {
           feedback: feedbackText,
         })
         setFeedbacks((prev) => ({ ...prev, [inserted.id]: feedbackText }))
-      } catch {
-        setFeedbacks((prev) => ({ ...prev, [inserted.id]: 'AI 피드백 생성 중 오류가 발생했습니다.' }))
+      } catch (e) {
+        setFeedbacks((prev) => ({ ...prev, [inserted.id]: e.message || 'AI 피드백 생성 중 오류가 발생했습니다.' }))
       } finally {
         setGeneratingFeedback(false)
       }

@@ -108,19 +108,27 @@ export default function CompetitionPage() {
     setCompetitions((c) => c.filter((x) => x.id !== id))
   }
 
+  // pbs 종목별 최신 1개로 중복 제거
+  const latestPbs = Object.values(
+    pbs.reduce((acc, p) => {
+      if (!acc[p.event] || p.achieved_date > acc[p.event].achieved_date) acc[p.event] = p
+      return acc
+    }, {})
+  )
+
   const generatePlan = async (competition, type) => {
     const key = `${competition.id}-${type}`
     setGenerating((g) => ({ ...g, [key]: true }))
     try {
       const text = type === 'pre'
-        ? await getCompetitionPrePlan(competition, pbs)
-        : await getCompetitionPostPlan(competition, pbs)
+        ? await getCompetitionPrePlan(competition, latestPbs)
+        : await getCompetitionPostPlan(competition, latestPbs)
       const field = type === 'pre' ? 'pre_plan' : 'post_plan'
       await supabase.from('competitions').update({ [field]: text }).eq('id', competition.id)
       setCompetitions((cs) => cs.map((c) => c.id === competition.id ? { ...c, [field]: text } : c))
       setPlanTab((t) => ({ ...t, [competition.id]: type }))
-    } catch {
-      alert('플랜 생성 중 오류가 발생했습니다.')
+    } catch (e) {
+      alert(e.message || '플랜 생성 중 오류가 발생했습니다.')
     } finally {
       setGenerating((g) => ({ ...g, [key]: false }))
     }
@@ -153,14 +161,14 @@ export default function CompetitionPage() {
     setEvaluating((e) => ({ ...e, [cid]: true }))
     try {
       const compResults = results[cid] || []
-      const text = await getCompetitionEvaluation(competition, compResults, pbs, goalsMap)
+      const text = await getCompetitionEvaluation(competition, compResults, latestPbs, goalsMap)
       // save to first result row
       if (compResults[0]) {
         await supabase.from('competition_results').update({ ai_evaluation: text }).eq('id', compResults[0].id)
       }
       setEvaluation((e) => ({ ...e, [cid]: text }))
-    } catch {
-      alert('평가 생성 중 오류가 발생했습니다.')
+    } catch (e) {
+      alert(e.message || '평가 생성 중 오류가 발생했습니다.')
     } finally {
       setEvaluating((e) => ({ ...e, [cid]: false }))
     }

@@ -442,6 +442,7 @@ export default function DashboardPage() {
                 tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
+                cursor={{ fill: 'transparent' }}
                 contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 8 }}
                 formatter={(value, name) => [`${value.toLocaleString()}m`, '총 거리']}
                 labelFormatter={(label) => `${label} 주차`}

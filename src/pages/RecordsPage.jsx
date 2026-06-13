@@ -1,29 +1,55 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { Plus, Trophy } from 'lucide-react'
+import { calcFinaPoints } from '../lib/fina'
+import { Plus, Trophy, ChevronDown, ChevronUp } from 'lucide-react'
 
-const EVENTS = ['자유형 400m', '자유형 800m', '자유형 1500m', '개인혼영 400m']
+const EVENT_GROUPS = [
+  {
+    label: '자유형',
+    events: ['자유형 50m', '자유형 100m', '자유형 200m', '자유형 400m', '자유형 800m', '자유형 1500m'],
+  },
+  {
+    label: '배영',
+    events: ['배영 50m', '배영 100m', '배영 200m'],
+  },
+  {
+    label: '평영',
+    events: ['평영 50m', '평영 100m', '평영 200m'],
+  },
+  {
+    label: '접영',
+    events: ['접영 50m', '접영 100m', '접영 200m'],
+  },
+  {
+    label: '개인혼영',
+    events: ['개인혼영 200m', '개인혼영 400m'],
+  },
+]
+const ALL_EVENTS = EVENT_GROUPS.flatMap((g) => g.events)
+
 const OLYMPIC = {
   '자유형 400m': '3:43.00',
   '자유형 800m': '7:50.00',
   '자유형 1500m': '14:52.00',
   '개인혼영 400m': '4:12.00',
 }
-const FINA_PTS = {
-  '자유형 400m': { pb: 881 },
-  '자유형 1500m': { pb: 798 },
-}
 
-const defaultForm = { event: '자유형 1500m', record_time: '', achieved_date: new Date().toISOString().slice(0, 10), notes: '' }
+const defaultForm = {
+  event: '자유형 1500m',
+  record_time: '',
+  achieved_date: new Date().toISOString().slice(0, 10),
+  notes: '',
+}
 
 export default function RecordsPage() {
   const user = useAuthStore((s) => s.user)
   const [records, setRecords] = useState([])
   const [form, setForm] = useState(defaultForm)
   const [showForm, setShowForm] = useState(false)
+  const [expandedGroup, setExpandedGroup] = useState('자유형')
 
-  const fetch = async () => {
+  const fetchRecords = async () => {
     const { data } = await supabase
       .from('personal_bests')
       .select('*')
@@ -32,22 +58,27 @@ export default function RecordsPage() {
     setRecords(data || [])
   }
 
-  useEffect(() => { fetch() }, [])
+  useEffect(() => { fetchRecords() }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     await supabase.from('personal_bests').insert({ ...form, user_id: user.id })
     setForm(defaultForm)
     setShowForm(false)
-    fetch()
+    fetchRecords()
   }
 
-  // Group latest PB per event
-  const latestPbs = EVENTS.reduce((acc, ev) => {
-    const rec = records.find((r) => r.event === ev)
-    acc[ev] = rec || null
-    return acc
-  }, {})
+  const handleDelete = async (id) => {
+    if (!confirm('이 기록을 삭제할까요?')) return
+    await supabase.from('personal_bests').delete().eq('id', id)
+    setRecords((r) => r.filter((x) => x.id !== id))
+  }
+
+  // 종목별 최신 PB
+  const latestPb = (event) => records.find((r) => r.event === event) || null
+
+  // 종목별 히스토리
+  const history = (event) => records.filter((r) => r.event === event)
 
   return (
     <div>
@@ -65,6 +96,7 @@ export default function RecordsPage() {
         </button>
       </div>
 
+      {/* 입력 폼 */}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
           <div className="grid grid-cols-2 gap-4 mb-4">
@@ -75,16 +107,20 @@ export default function RecordsPage() {
                 onChange={(e) => setForm((f) => ({ ...f, event: e.target.value }))}
                 className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
               >
-                {EVENTS.map((ev) => <option key={ev}>{ev}</option>)}
+                {EVENT_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.events.map((ev) => <option key={ev}>{ev}</option>)}
+                  </optgroup>
+                ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">기록 (mm:ss.xx)</label>
+              <label className="block text-sm text-slate-400 mb-1">기록 (m:ss.xx)</label>
               <input
                 type="text"
                 value={form.record_time}
                 onChange={(e) => setForm((f) => ({ ...f, record_time: e.target.value }))}
-                placeholder="예: 15:13.36"
+                placeholder="예: 15:13.36 또는 24.73"
                 className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                 required
               />
@@ -100,12 +136,12 @@ export default function RecordsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">메모 (선택)</label>
+              <label className="block text-sm text-slate-400 mb-1">대회명 (선택)</label>
               <input
                 type="text"
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                placeholder="대회명 등"
+                placeholder="예: 25년 세계주니어"
                 className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -117,43 +153,107 @@ export default function RecordsPage() {
         </form>
       )}
 
-      {/* PB Cards */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        {EVENTS.map((ev) => {
-          const pb = latestPbs[ev]
+      {/* 그룹별 PB 테이블 */}
+      <div className="space-y-3">
+        {EVENT_GROUPS.map((group) => {
+          const isOpen = expandedGroup === group.label
+          const groupPbs = group.events.map((ev) => ({ ev, pb: latestPb(ev) }))
+          const hasAny = groupPbs.some((x) => x.pb)
+
           return (
-            <div key={ev} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
-              <div className="flex items-center gap-2 mb-3">
-                <Trophy size={16} className="text-yellow-400" />
-                <span className="text-slate-300 text-sm font-medium">{ev}</span>
-              </div>
-              <p className="text-3xl font-bold text-white mb-1">{pb?.record_time ?? '-'}</p>
-              <p className="text-xs text-slate-500">{pb?.achieved_date ?? '기록 없음'}</p>
-              <div className="mt-3 pt-3 border-t border-slate-700/30 flex justify-between text-xs">
-                <span className="text-slate-500">올림픽 기준</span>
-                <span className="text-blue-400">{OLYMPIC[ev]}</span>
-              </div>
+            <div key={group.label} className="bg-[#1a1d27] rounded-xl border border-slate-700/50 overflow-hidden">
+              <button
+                onClick={() => setExpandedGroup(isOpen ? null : group.label)}
+                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-700/20 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <Trophy size={15} className={hasAny ? 'text-yellow-400' : 'text-slate-600'} />
+                  <span className="text-white font-medium text-sm">{group.label}</span>
+                  {hasAny && (
+                    <span className="text-xs text-slate-500">
+                      {groupPbs.filter((x) => x.pb).length}개 기록
+                    </span>
+                  )}
+                </div>
+                {isOpen ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+              </button>
+
+              {isOpen && (
+                <div className="border-t border-slate-700/30">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-slate-500 border-b border-slate-700/30">
+                        <th className="text-left px-5 py-2">종목</th>
+                        <th className="text-left px-3 py-2">PB</th>
+                        <th className="text-left px-3 py-2">달성일</th>
+                        <th className="text-left px-3 py-2">대회</th>
+                        <th className="text-left px-3 py-2">FINA</th>
+                        <th className="text-left px-3 py-2">올림픽</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupPbs.map(({ ev, pb }) => {
+                        const fina = pb ? calcFinaPoints(ev, pb.record_time) : null
+                        const hist = history(ev)
+                        return (
+                          <tr key={ev} className="border-b border-slate-700/20 last:border-0 hover:bg-slate-700/10">
+                            <td className="px-5 py-2.5 text-slate-300">{ev.replace(group.label + ' ', '')}</td>
+                            <td className="px-3 py-2.5">
+                              <span className={pb ? 'text-white font-semibold' : 'text-slate-600'}>
+                                {pb?.record_time ?? '-'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-500 text-xs">{pb?.achieved_date ?? '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-500 text-xs">{pb?.notes ?? '-'}</td>
+                            <td className="px-3 py-2.5">
+                              {fina ? (
+                                <span className={`text-xs font-medium ${fina >= 900 ? 'text-yellow-400' : fina >= 800 ? 'text-blue-400' : 'text-slate-400'}`}>
+                                  {fina}
+                                </span>
+                              ) : <span className="text-slate-600 text-xs">-</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-blue-400 text-xs">{OLYMPIC[ev] ?? '-'}</td>
+                            <td className="px-3 py-2.5">
+                              {pb && (
+                                <button
+                                  onClick={() => handleDelete(pb.id)}
+                                  className="text-xs text-red-500/60 hover:text-red-400 transition"
+                                >
+                                  삭제
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+
+                  {/* 히스토리 */}
+                  {group.events.some((ev) => history(ev).length > 1) && (
+                    <div className="px-5 py-3 border-t border-slate-700/30">
+                      <p className="text-xs text-slate-500 mb-2">기록 히스토리</p>
+                      <div className="space-y-1">
+                        {group.events.flatMap((ev) =>
+                          history(ev).slice(1).map((r) => (
+                            <div key={r.id} className="flex gap-4 text-xs text-slate-600">
+                              <span>{r.achieved_date}</span>
+                              <span>{ev}</span>
+                              <span>{r.record_time}</span>
+                              <span>{r.notes}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
       </div>
-
-      {/* History */}
-      {records.length > 0 && (
-        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
-          <h2 className="text-sm font-semibold text-slate-300 mb-4">기록 히스토리</h2>
-          <div className="space-y-2">
-            {records.map((r) => (
-              <div key={r.id} className="flex items-center justify-between py-2 border-b border-slate-700/30 last:border-0 text-sm">
-                <span className="text-slate-400">{r.achieved_date}</span>
-                <span className="text-slate-300">{r.event}</span>
-                <span className="text-white font-semibold">{r.record_time}</span>
-                <span className="text-slate-500 text-xs">{r.notes || ''}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

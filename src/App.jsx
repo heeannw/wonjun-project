@@ -26,20 +26,26 @@ function PrivateRoute({ children }) {
 }
 
 export default function App() {
-  const { setUser, setLoading } = useAuthStore()
+  const { setUser, setLoading, fetchAppProfile } = useAuthStore()
   const { fetchProfile } = useProfileStore()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       const u = data.session?.user ?? null
       setUser(u)
-      if (u) fetchProfile(u.id)
+      if (u) {
+        await fetchAppProfile(u.id)
+        fetchProfile(u.id)
+      }
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const u = session?.user ?? null
       setUser(u)
-      if (u) fetchProfile(u.id)
+      if (u) {
+        await fetchAppProfile(u.id)
+        fetchProfile(u.id)
+      }
     })
     return () => subscription.unsubscribe()
   }, [])

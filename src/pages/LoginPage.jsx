@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [loginType, setLoginType] = useState('athlete')
   const signIn = useAuthStore((s) => s.signIn)
+  const signOut = useAuthStore((s) => s.signOut)
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
@@ -17,7 +18,15 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await signIn(email, password)
+      const result = await signIn(email, password)
+      const actualRole = result.appProfile?.role
+      if (actualRole && actualRole !== loginType) {
+        await signOut()
+        setError(actualRole === 'coach'
+          ? '이 계정은 코치 계정입니다. 코치 로그인 탭을 선택해주세요.'
+          : '이 계정은 선수 계정입니다. 선수 로그인 탭을 선택해주세요.')
+        return
+      }
       localStorage.setItem('wonjun-login-type', loginType)
       navigate(loginType === 'coach' ? '/coach' : '/')
     } catch (err) {

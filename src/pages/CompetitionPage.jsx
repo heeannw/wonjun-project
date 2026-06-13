@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { getCompetitionPrePlan, getCompetitionPostPlan, getCompetitionEvaluation } from '../lib/gemini'
-import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, BrainCircuit, RefreshCw, ClipboardList } from 'lucide-react'
+import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, BrainCircuit, RefreshCw, ClipboardList, BarChart2 } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { timeToSeconds } from '../lib/fina'
 
 const EVENT_OPTIONS = [
   '자유형 50m', '자유형 100m', '자유형 200m', '자유형 400m', '자유형 800m', '자유형 1500m',
@@ -385,6 +387,12 @@ export default function CompetitionPage() {
         >
           피크 타이밍
         </button>
+        <button
+          onClick={() => setPageTab('history')}
+          className={`text-sm px-4 py-2 rounded-md transition font-medium ${pageTab === 'history' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'}`}
+        >
+          대회 히스토리
+        </button>
       </div>
 
       {/* 훈련 플랜 탭 */}
@@ -600,8 +608,145 @@ export default function CompetitionPage() {
         )
       })()}
 
+      {/* 대회 히스토리 비교 */}
+      {pageTab === 'history' && (() => {
+        // 모든 결과에서 종목 추출
+        const allResults = Object.values(results).flat()
+        const eventSet = [...new Set(allResults.map(r => r.event))].sort()
+
+        // competition id → name/date 맵
+        const compMap = {}
+        competitions.forEach(c => { compMap[c.id] = c })
+
+        const [histEvent, setHistEvent] = useState(eventSet[0] || '')
+
+        const histData = allResults
+          .filter(r => r.event === histEvent && r.record_time)
+          .map(r => ({
+            name: compMap[r.competition_id]?.name?.slice(0, 8) || '-',
+            date: compMap[r.competition_id]?.start_date || '',
+            기록초: Math.round(timeToSeconds(r.record_time) * 100) / 100,
+            기록: r.record_time,
+            rank: r.rank,
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date))
+
+        const best = histData.length ? histData.reduce((a, b) => a.기록초 < b.기록초 ? a : b) : null
+
+        return (
+          <div>
+            {allResults.length === 0 ? (
+              <div className="bg-[#1a1d27] rounded-xl p-6 border border-slate-700/50 text-slate-500 text-sm">
+                시합 결과를 입력하면 여기서 비교할 수 있습니다.
+              </div>
+            ) : (
+              <>
+                {/* 종목 선택 */}
+                <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50 mb-4">
+                  <label className="block text-xs text-slate-500 mb-2">종목 선택</label>
+                  <div className="flex flex-wrap gap-2">
+                    {eventSet.map(ev => (
+                      <button key={ev} onClick={() => setHistEvent(ev)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition ${histEvent === ev ? 'bg-orange-600/30 border-orange-500/40 text-orange-300' : 'border-slate-700 text-slate-500 hover:text-white'}`}>
+                        {ev}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {histData.length === 0 ? (
+                  <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 text-slate-500 text-sm">
+                    선택한 종목의 결과가 없습니다.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* 베스트 기록 */}
+                    {best && (
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-slate-400 mb-1">최고 기록</p>
+                          <p className="text-2xl font-bold text-yellow-400 font-mono">{best.기록}</p>
+                          <p className="text-xs text-slate-500 mt-1">{best.name} ({best.date}){best.rank ? ` · ${best.rank}위` : ''}</p>
+                        </div>
+                        <span className="text-3xl">🏆</span>
+                      </div>
+                    )}
+
+                    {/* 기록 추이 그래프 */}
+                    {histData.length >= 2 && (
+                      <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
+                        <h2 className="text-sm font-semibold text-slate-300 mb-4">{histEvent} 대회별 기록 추이</h2>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart data={histData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
+                            <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} />
+                            <YAxis
+                              domain={['auto', 'auto']}
+                              tick={{ fill: '#64748b', fontSize: 10 }}
+                              tickFormatter={(v) => { const m = Math.floor(v/60); const s = (v%60).toFixed(0).padStart(2,'0'); return m > 0 ? `${m}:${s}` : `${s}` }}
+                              reversed
+                            />
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 8 }}
+                              content={({ active, payload }) => {
+                                if (!active || !payload?.length) return null
+                                const d = payload[0].payload
+                                return (
+                                  <div style={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
+                                    <p style={{ color: '#94a3b8', marginBottom: 2 }}>{d.name} ({d.date})</p>
+                                    <p style={{ color: '#f97316', fontWeight: 600 }}>{d.기록}</p>
+                                    {d.rank && <p style={{ color: '#facc15' }}>{d.rank}위</p>}
+                                  </div>
+                                )
+                              }}
+                            />
+                            <Line type="monotone" dataKey="기록초" stroke="#f97316" strokeWidth={2}
+                              dot={({ cx, cy, payload }) => {
+                                const isBest = payload.기록초 === best?.기록초
+                                return <circle key={cx} cx={cx} cy={cy} r={isBest ? 7 : 4} fill={isBest ? '#facc15' : '#f97316'} stroke="#1a1d27" strokeWidth={2} />
+                              }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+
+                    {/* 기록 테이블 */}
+                    <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-xs text-slate-500 border-b border-slate-700/30">
+                            <th className="text-left px-5 py-3 font-medium">대회</th>
+                            <th className="text-left px-4 py-3 font-medium">날짜</th>
+                            <th className="text-right px-4 py-3 font-medium">기록</th>
+                            <th className="text-right px-5 py-3 font-medium">순위</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...histData].reverse().map((row, i) => (
+                            <tr key={i} className={`border-b border-slate-700/20 last:border-0 ${row.기록 === best?.기록 ? 'bg-yellow-500/5' : 'hover:bg-slate-700/10'}`}>
+                              <td className="px-5 py-3">
+                                <span className="text-slate-300">{compMap[allResults.find(r => r.event === histEvent && r.record_time === row.기록)?.competition_id]?.name || row.name}</span>
+                                {row.기록 === best?.기록 && <span className="ml-2 text-xs text-yellow-400">🏆 베스트</span>}
+                              </td>
+                              <td className="px-4 py-3 text-slate-500 text-xs">{row.date}</td>
+                              <td className="px-4 py-3 text-right font-mono font-semibold text-white">{row.기록}</td>
+                              <td className="px-5 py-3 text-right text-yellow-400">{row.rank ? `${row.rank}위` : '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )
+      })()}
+
       {pageTab === 'plan' && <div className="hidden" />}
-      {pageTab !== 'plan' && pageTab !== 'peak' && <div>
+      {pageTab !== 'plan' && pageTab !== 'peak' && pageTab !== 'history' && <div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6 space-y-4">

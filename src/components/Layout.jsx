@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, Trophy, Brain, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell, UserCircle } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Trophy, Brain, CalendarDays, Swords, FileText, Scale, LogOut, Timer, Dumbbell, UserCircle, Moon, Sun } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 const navItems = [
@@ -19,6 +20,12 @@ const navItems = [
 export default function Layout({ children }) {
   const signOut = useAuthStore((s) => s.signOut)
   const navigate = useNavigate()
+  const [theme, setTheme] = useState(() => localStorage.getItem('wonjun-theme') || 'dark')
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('wonjun-theme', theme)
+  }, [theme])
 
   const handleSignOut = async () => {
     await signOut()
@@ -27,8 +34,30 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-[#0f1117] flex">
+      {/* Mobile top bar */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[#1a1d27]/95 backdrop-blur border-b border-slate-700/50 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-2xl shrink-0">🏊</span>
+            <div className="min-w-0">
+              <p className="text-white font-bold text-sm leading-tight">WONJUNE</p>
+              <p className="text-slate-500 text-xs truncate">2028 LA 올림픽</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+            className="flex items-center gap-1.5 rounded-full border border-slate-700/50 bg-[#0f1117] px-3 py-2 text-xs font-semibold text-slate-300 transition theme-toggle shrink-0"
+            title={theme === 'dark' ? '화이트 버전으로 변경' : '블랙 버전으로 변경'}
+          >
+            {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
+            {theme === 'dark' ? '블랙' : '화이트'}
+          </button>
+        </div>
+      </header>
+
       {/* Sidebar */}
-      <aside className="w-56 bg-[#1a1d27] border-r border-slate-700/50 flex flex-col fixed h-full">
+      <aside className="hidden md:flex w-56 bg-[#1a1d27] border-r border-slate-700/50 flex-col fixed h-full">
         <div className="p-5 border-b border-slate-700/50">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🏊</span>
@@ -71,9 +100,41 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Main */}
-      <main className="ml-56 flex-1 p-6 min-h-screen">
+      <main className="w-full md:ml-56 flex-1 px-4 py-5 pt-20 pb-24 md:p-6 md:min-h-screen overflow-x-hidden">
+        <button
+          type="button"
+          onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+          className="hidden md:flex fixed right-6 top-5 z-40 items-center gap-2 rounded-full border border-slate-700/50 bg-[#1a1d27] px-3 py-2 text-xs font-semibold text-slate-300 shadow-lg transition hover:border-blue-500/50 hover:text-white theme-toggle"
+          title={theme === 'dark' ? '화이트 버전으로 변경' : '블랙 버전으로 변경'}
+        >
+          {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
+          {theme === 'dark' ? '블랙' : '화이트'}
+        </button>
         {children}
       </main>
+
+      {/* Mobile bottom navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#1a1d27]/95 backdrop-blur border-t border-slate-700/50 px-2 py-2">
+        <div className="flex gap-1 overflow-x-auto mobile-nav-scroll pb-1">
+          {navItems.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                `flex min-w-[72px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] transition ${
+                  isActive
+                    ? 'bg-blue-600/20 text-blue-400 font-semibold'
+                    : 'text-slate-400'
+                }`
+              }
+            >
+              <Icon size={17} />
+              <span className="whitespace-nowrap">{label.replace(' ', '')}</span>
+            </NavLink>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }

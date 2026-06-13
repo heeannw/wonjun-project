@@ -47,13 +47,8 @@ function average(rows, key) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
 }
 
-const EMOTION_LABELS = {
-  '😤': '집중',
-  '💪': '자신감',
-  '😊': '평온',
-  '😐': '보통',
-  '😔': '피로',
-  '😟': '불안',
+function formatGapSeconds(value) {
+  return `${Math.abs(value).toFixed(2)}초`
 }
 
 const defaultForm = {
@@ -75,6 +70,7 @@ export default function ProfilePage() {
   const [mentalLogs, setMentalLogs] = useState([])
   const [strengthRecords, setStrengthRecords] = useState([])
   const [competitions, setCompetitions] = useState([])
+  const [competitionResults, setCompetitionResults] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -82,7 +78,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const [profileRes, pbsRes, logsRes, bodyRes, mentalRes, strengthRes, competitionsRes] = await Promise.all([
+      const [profileRes, pbsRes, logsRes, bodyRes, mentalRes, strengthRes, competitionsRes, competitionResultsRes] = await Promise.all([
         supabase.from('athlete_profiles').select('*').eq('user_id', user.id).single(),
         supabase.from('personal_bests').select('*').eq('user_id', user.id).order('achieved_date', { ascending: true }),
         supabase.from('training_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
@@ -90,6 +86,7 @@ export default function ProfilePage() {
         supabase.from('mental_journals').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
         supabase.from('strength_records').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
         supabase.from('competitions').select('*').eq('user_id', user.id).order('start_date', { ascending: true }),
+        supabase.from('competition_results').select('*').eq('user_id', user.id),
       ])
       const data = profileRes.data
       if (data) {
@@ -110,6 +107,7 @@ export default function ProfilePage() {
       setMentalLogs(mentalRes.data || [])
       setStrengthRecords(strengthRes.data || [])
       setCompetitions(competitionsRes.data || [])
+      setCompetitionResults(competitionResultsRes.data || [])
       setLoading(false)
     }
     fetchProfile()
@@ -186,13 +184,26 @@ export default function ProfilePage() {
   const mainEventCoverage = form.main_events.length
     ? form.main_events.filter((event) => latestPbMap[event]).length / form.main_events.length
     : 0
-  const emotionCounts = mentalLogs.reduce((acc, log) => {
-    acc[log.emotion] = (acc[log.emotion] || 0) + 1
-    return acc
-  }, {})
-  const topEmotion = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]
   const today = new Date().toISOString().slice(0, 10)
   const upcomingCompetition = competitions.find((competition) => (competition.end_date || competition.start_date) >= today)
+  const competitionMap = competitions.reduce((acc, competition) => {
+    acc[competition.id] = competition
+    return acc
+  }, {})
+  const resultIssues = competitionResults
+    .filter((result) => result.record_time && latestPbMap[result.event])
+    .map((result) => {
+      const pb = latestPbMap[result.event]
+      const gapSec = timeToSeconds(result.record_time) - timeToSeconds(pb.record_time)
+      return {
+        ...result,
+        pb,
+        gapSec,
+        competition: competitionMap[result.competition_id],
+      }
+    })
+    .filter((result) => result.gapSec > 0.5)
+    .sort((a, b) => b.gapSec - a.gapSec)
   const dataCompleteness = [
     latestPbs.length > 0,
     recentLogs.length > 0,
@@ -214,24 +225,38 @@ export default function ProfilePage() {
   const chartAverage = radarData.reduce((sum, item) => sum + item.score, 0) / radarData.length
   const strongestArea = [...radarData].sort((a, b) => b.score - a.score)[0]
   const weakestArea = [...radarData].sort((a, b) => a.score - b.score)[0]
+  const recoveryState = avgFatigue >= 6.5
+    ? '신체 피로가 높은 편이라 기록 저하가 보이면 훈련량보다 회복 상태를 먼저 확인해야 합니다.'
+    : avgCondition >= 7 && avgFatigue <= 4
+      ? '컨디션은 안정적이고 피로도는 낮은 편이라 고품질 훈련을 소화하기 좋은 상태입니다.'
+      : avgCondition
+        ? '컨디션과 피로는 무난하지만, 강도 높은 훈련 후 회복 반응을 계속 확인할 필요가 있습니다.'
+        : '컨디션과 피로 기록이 부족해 현재 몸 상태 판단은 제한적입니다.'
+  const performanceState = resultIssues[0]
+    ? `${resultIssues[0].event} 시합 기록이 PB보다 +${formatGapSeconds(resultIssues[0].gapSec)} 늦어 레이스 운영, 턴 이후 재가속, 후반 유지력이 보완 포인트입니다.`
+    : bestPb
+      ? `현재 가장 좋은 기록 축은 ${bestPb.event}이며, ${bestPb.record_time} / FINA ${bestPb.fina}pt로 경쟁력의 기준점이 잡혀 있습니다.`
+      : 'PB 기록이 아직 부족해 현재 경기력의 강점 종목을 판단하기 어렵습니다.'
+  const growthState = improvedEventCount > 0
+    ? `${improvedEventCount}개 종목에서 기록 개선 흐름이 확인되어, 지금은 강점 종목을 중심으로 경기력을 확장하기 좋은 단계입니다.`
+    : pbEventsWithHistory > 0
+      ? '기록 추이는 쌓이고 있지만 뚜렷한 개선 폭은 아직 제한적입니다. 같은 종목 반복 측정으로 원인을 더 좁혀야 합니다.'
+      : '기록 추적 데이터가 적어 성장 속도 판단이 어렵습니다. 주종목 위주로 기준 기록을 반복해서 쌓는 것이 우선입니다.'
   const profileSummary = [
-    bestPb
-      ? `최고 경쟁력은 ${bestPb.event} ${bestPb.record_time} 기록이며 FINA ${bestPb.fina}pt입니다.`
-      : 'PB 기록이 아직 없어 경기력 기준점이 비어 있습니다.',
-    recentLogs.length
-      ? `최근 ${recentLogs.length}회 훈련은 총 ${(totalRecentDistance / 1000).toFixed(1)}km, 평균 운동 강도 ${avgIntensity.toFixed(1)}, 컨디션 ${avgCondition.toFixed(1)}/10입니다.`
-      : '최근 훈련 기록이 없어 훈련 부하와 회복 상태를 판단하기 어렵습니다.',
-    mentalLogs.length
-      ? `최근 멘탈 기록은 ${EMOTION_LABELS[topEmotion?.[0]] || topEmotion?.[0]} 흐름이 가장 많고, 일지 ${mentalLogs.length}건이 누적되어 있습니다.`
-      : '멘탈 일지가 없어 심리 상태 흐름은 아직 차트에 반영되지 않았습니다.',
+    performanceState,
+    growthState,
+    recoveryState,
   ]
   const coachCheckpoints = [
-    weakestArea && `${weakestArea.item} 점수가 가장 낮습니다. 다음 코칭 미팅에서 이 항목을 먼저 확인하세요.`,
-    strongestArea && `${strongestArea.item}이 현재 가장 강한 축입니다. 강점을 훈련 계획에 연결할 수 있습니다.`,
-    upcomingCompetition && `다가오는 시합: ${upcomingCompetition.name} (${upcomingCompetition.start_date}${upcomingCompetition.end_date ? `~${upcomingCompetition.end_date}` : ''})`,
-    avgFatigue >= 6.5 && '신체 피로가 높은 편입니다. 회복 훈련 또는 수면 관리 확인이 필요합니다.',
-    mainEventCoverage < 1 && form.main_events.length > 0 && `전문 종목 ${form.main_events.length}개 중 PB가 없는 종목이 있습니다.`,
-    !latestBody && '신체 기록이 없어 체중·체성분 변화 분석이 빠져 있습니다.',
+    resultIssues[0] && `${resultIssues[0].event} 경기 기록이 PB보다 +${formatGapSeconds(resultIssues[0].gapSec)} 늦습니다. ${resultIssues[0].competition?.name ? `${resultIssues[0].competition.name} 결과 기준으로 ` : ''}초반 100m 진입, 후반 페이스 유지, 턴 이후 재가속 중 어디서 밀렸는지 랩 기록으로 확인하세요.`,
+    resultIssues[0] && `${resultIssues[0].event} 보완 훈련: 레이스 페이스 4~6회 반복, 마지막 50m 유지 훈련, 턴 후 15m 가속 구간 체크를 다음 2주 훈련에 넣는 것이 좋습니다.`,
+    avgFatigue >= 6.5 && `신체 피로가 ${avgFatigue.toFixed(1)}/10으로 높습니다. 경기 기록이 흔들렸다면 훈련 부족보다 회복 부족 가능성도 함께 확인하세요.`,
+    avgCondition > 0 && avgCondition < 6 && `컨디션 평균이 ${avgCondition.toFixed(1)}/10입니다. 고강도 세트 전 수면, 식사, 워밍업 루틴이 일정했는지 점검하세요.`,
+    weakestArea && `${weakestArea.item} 점수가 가장 낮습니다. 이 항목을 다음 코칭 미팅의 첫 확인 주제로 잡으세요.`,
+    !resultIssues.length && strongestArea && `${strongestArea.item}이 현재 강점입니다. 이 강점이 실제 시합 기록으로 이어지는지 경기 결과와 함께 계속 확인하세요.`,
+    upcomingCompetition && `다가오는 시합 ${upcomingCompetition.name} 전에는 목표 페이스, 출전 종목별 레이스 전략, 회복일 배치를 먼저 확정하세요.`,
+    mainEventCoverage < 1 && form.main_events.length > 0 && `전문 종목 ${form.main_events.length}개 중 PB가 없는 종목이 있습니다. 주종목 판단을 위해 최소 기준 기록을 먼저 채우세요.`,
+    !latestBody && '신체 기록이 없어 체중·체성분 변화와 경기력 저하의 관계를 확인하기 어렵습니다.',
     !strengthRecords.length && '근력 기록이 없어 웨이트 변화와 수영 기록의 관계를 볼 수 없습니다.',
   ].filter(Boolean).slice(0, 5)
 
@@ -378,6 +403,63 @@ export default function ProfilePage() {
         <p className="text-xs text-slate-500 mb-1">계정 이메일</p>
         <p className="text-sm text-slate-300">{user.email}</p>
       </div>
+
+      <div className="mt-4 grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_420px] gap-4">
+        <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+          <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            <ClipboardCheck size={15} className="text-purple-400" />
+            코치 체크포인트
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+            {(coachCheckpoints.length ? coachCheckpoints : ['현재 입력된 데이터 기준으로 즉시 확인해야 할 위험 신호는 크지 않습니다.']).map((line, index) => (
+              <p key={index} className="text-sm text-slate-300 leading-relaxed bg-[#0f1117] rounded-lg px-3 py-2 border border-slate-800">
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-1 gap-4">
+          <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+            <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+              <Target size={15} className="text-yellow-400" />
+              핵심 종목
+            </h2>
+            <div className="space-y-2">
+              {pbsWithFina.slice(0, 3).length ? pbsWithFina.slice(0, 3).map((pb) => (
+                <div key={pb.id} className="flex items-center justify-between gap-3 text-sm bg-[#0f1117] rounded-lg px-3 py-2 border border-slate-800">
+                  <span className="text-slate-300 truncate">{pb.event}</span>
+                  <span className="text-blue-300 font-semibold shrink-0">{pb.fina}pt</span>
+                </div>
+              )) : (
+                <p className="text-sm text-slate-500">PB 기록이 없습니다.</p>
+              )}
+            </div>
+          </div>
+          <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
+            <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+              <CalendarDays size={15} className="text-red-400" />
+              시합 일정
+            </h2>
+            <div className="space-y-2 text-sm">
+              <div className="bg-[#0f1117] rounded-lg px-3 py-2 border border-slate-800">
+                <p className="text-xs text-slate-500">다가오는 시합</p>
+                <p className="text-slate-300 mt-0.5">{upcomingCompetition ? upcomingCompetition.name : '등록 없음'}</p>
+              </div>
+              <div className="bg-[#0f1117] rounded-lg px-3 py-2 border border-slate-800">
+                <p className="text-xs text-slate-500">기록 입력 상태</p>
+                <p className="text-slate-300 mt-0.5">
+                  {dataCompleteness >= 5
+                    ? '분석에 필요한 기록이 충분합니다'
+                    : dataCompleteness >= 3
+                      ? '일부 기록이 더 필요합니다'
+                      : '기록을 더 입력해야 분석이 정확해집니다'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
       <div className="space-y-4">
         <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
@@ -458,54 +540,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
-          <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-            <ClipboardCheck size={15} className="text-purple-400" />
-            코치 체크포인트
-          </h2>
-          <div className="space-y-2">
-            {(coachCheckpoints.length ? coachCheckpoints : ['현재 입력된 데이터 기준으로 즉시 확인해야 할 위험 신호는 크지 않습니다.']).map((line, index) => (
-              <p key={index} className="text-sm text-slate-300 leading-relaxed bg-[#0f1117] rounded-lg px-3 py-2 border border-slate-800">
-                {line}
-              </p>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
-            <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-              <Target size={15} className="text-yellow-400" />
-              핵심 종목
-            </h2>
-            <div className="space-y-2">
-              {pbsWithFina.slice(0, 3).length ? pbsWithFina.slice(0, 3).map((pb) => (
-                <div key={pb.id} className="flex items-center justify-between gap-3 text-sm bg-[#0f1117] rounded-lg px-3 py-2 border border-slate-800">
-                  <span className="text-slate-300 truncate">{pb.event}</span>
-                  <span className="text-blue-300 font-semibold shrink-0">{pb.fina}pt</span>
-                </div>
-              )) : (
-                <p className="text-sm text-slate-500">PB 기록이 없습니다.</p>
-              )}
-            </div>
-          </div>
-          <div className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
-            <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-              <CalendarDays size={15} className="text-red-400" />
-              일정 감도
-            </h2>
-            <div className="space-y-2 text-sm">
-              <div className="bg-[#0f1117] rounded-lg px-3 py-2 border border-slate-800">
-                <p className="text-xs text-slate-500">다가오는 시합</p>
-                <p className="text-slate-300 mt-0.5">{upcomingCompetition ? upcomingCompetition.name : '등록 없음'}</p>
-              </div>
-              <div className="bg-[#0f1117] rounded-lg px-3 py-2 border border-slate-800">
-                <p className="text-xs text-slate-500">분석 데이터</p>
-                <p className="text-slate-300 mt-0.5">{dataCompleteness}/6 영역 입력됨</p>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
       </div>
     </div>

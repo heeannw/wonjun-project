@@ -120,15 +120,60 @@ function lapColor(lapTime, avgLap) {
   return 'text-red-400'
 }
 
-// 종목별 자연스러운 구간 분할 정의
 function getSegmentDists(event) {
-  const d = event.distance
-  if (d === 100) return [50, 50]
-  if (d === 200) return [50, 50, 50, 50]
-  if (d === 400) return [100, 100, 100, 100]
-  if (d === 800) return [200, 200, 200, 200]
-  if (d === 1500) return [300, 300, 300, 300, 300]
-  return [d / 2, d / 2]
+  return Array.from({ length: event.distance / 50 }, () => 50)
+}
+
+function getRaceFeedback(result, segments) {
+  const { phaseAvg, avgPace, worstIdx, bestIdx, deltas, pacePer100 } = result
+  const frontDiff = phaseAvg.front - avgPace
+  const backDiff = phaseAvg.back - avgPace
+  const midDiff = phaseAvg.middle - avgPace
+  const biggestDropIdx = deltas.reduce((worst, delta, index) => delta > deltas[worst] ? index : worst, 0)
+  const biggestDrop = deltas[biggestDropIdx]
+  const worstDist = segments.slice(0, worstIdx + 1).reduce((a, b) => a + b, 0)
+  const bestDist = segments.slice(0, bestIdx + 1).reduce((a, b) => a + b, 0)
+  const dropDist = segments.slice(0, biggestDropIdx + 1).reduce((a, b) => a + b, 0)
+  const range = Math.max(...pacePer100) - Math.min(...pacePer100)
+
+  const good = []
+  const issues = []
+  const training = []
+
+  if (range <= 1.2) {
+    good.push('50m 랩 편차가 작아 레이스 리듬은 안정적입니다. 페이스 감각 자체는 좋은 편입니다.')
+  } else {
+    issues.push(`가장 빠른 50m와 느린 50m의 100m 환산 페이스 차이가 ${range.toFixed(2)}초입니다. 경기 중 속도 유지가 흔들린 구간이 있습니다.`)
+  }
+
+  if (backDiff < -0.4) {
+    good.push('후반 페이스가 평균보다 빠릅니다. 체력 분배와 마지막 구간 집중력은 강점으로 볼 수 있습니다.')
+  }
+  if (frontDiff < -0.6 && backDiff > 0.6) {
+    issues.push('초반이 빠르고 후반이 느려지는 포지티브 스플릿입니다. 초반 흥분으로 에너지를 과하게 쓴 가능성이 큽니다.')
+    training.push('초반 100m를 목표 페이스보다 0.5~1.0초 느리게 통제한 뒤, 중후반부터 올리는 빌드업 세트를 진행하세요.')
+  }
+  if (midDiff > 0.5) {
+    issues.push('중반 구간 페이스가 평균보다 느립니다. 레이스 중간에서 스트로크 길이 또는 킥 유지가 떨어졌을 가능성이 있습니다.')
+    training.push('중반 유지력 보완을 위해 50m 레이스 페이스 반복을 짧은 휴식으로 묶고, 매 반복의 스트로크 수를 같이 기록하세요.')
+  }
+  if (biggestDrop > 0.6) {
+    issues.push(`${dropDist - 50}~${dropDist}m 구간에서 이전 50m 대비 ${biggestDrop.toFixed(2)}초 감속되었습니다. 이 지점이 가장 먼저 확인할 문제 구간입니다.`)
+  }
+  if (worstIdx > bestIdx && worstIdx >= Math.floor(segments.length * 0.65)) {
+    issues.push(`가장 느린 구간이 ${worstDist - 50}~${worstDist}m입니다. 후반 체력 저하 또는 턴 이후 재가속 부족을 의심해야 합니다.`)
+    training.push('마지막 25m 속도 유지 훈련과 턴 후 15m 돌핀/킥 재가속 체크를 넣어 후반 손실을 줄이세요.')
+  }
+  if (!training.length) {
+    training.push('현재 패턴은 큰 붕괴보다 세부 페이스 정밀도가 핵심입니다. 목표 50m 랩을 정하고 ±0.3초 안에 맞추는 페이스 컨트롤 세트를 추천합니다.')
+  }
+  good.push(`가장 좋은 구간은 ${bestDist - 50}~${bestDist}m입니다. 이 구간의 스트로크 템포와 호흡 패턴을 기준 모델로 삼을 수 있습니다.`)
+
+  return {
+    good: good.slice(0, 2),
+    issues: issues.length ? issues.slice(0, 3) : ['큰 붕괴 구간은 보이지 않습니다. 다만 실제 경기에서는 턴, 호흡, 스트로크 수까지 함께 확인해야 더 정확합니다.'],
+    training: training.slice(0, 3),
+  }
 }
 
 function RaceAnalysis() {
@@ -210,20 +255,20 @@ function RaceAnalysis() {
 
       {/* 구간 입력 */}
       <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50 mb-4">
-        <p className="text-xs text-slate-400 mb-3">구간별 기록 입력 <span className="text-slate-600">({segments.length}구간 × {segments[0]}m)</span></p>
-        <div className={`grid gap-3 ${segments.length <= 4 ? 'grid-cols-' + segments.length : 'grid-cols-5'}`}>
+        <p className="text-xs text-slate-400 mb-3">50m 랩 기록 입력 <span className="text-slate-600">({segments.length}개 랩)</span></p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-10 gap-3">
           {segments.map((dist, i) => {
             const cumDist = segments.slice(0, i + 1).reduce((a, b) => a + b, 0)
             return (
               <div key={i}>
-                <label className="block text-[10px] text-slate-500 mb-1">
-                  구간 {i + 1} <span className="text-slate-600">({cumDist}m)</span>
+                <label className="block text-sm text-white font-bold mb-1">
+                  구간 {i + 1} <span className="text-xs text-slate-400 font-semibold">({cumDist - 50}~{cumDist}m)</span>
                 </label>
                 <TimeInput
                   value={times[i] || ''}
                   onChange={(v) => setTime(i, v)}
                   onKeyDown={(e) => e.key === 'Enter' && i === segments.length - 1 && analyze()}
-                  placeholder={dist <= 100 ? '예: 5730' : '예: 12450'}
+                  placeholder="예: 2730"
                   className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-2 py-2 text-white text-sm focus:outline-none focus:border-green-500"
                 />
               </div>
@@ -294,8 +339,8 @@ function RaceAnalysis() {
                   <div key={i} className={`rounded-lg p-3 border ${isBest ? 'border-green-500/40 bg-green-500/5' : isWorst ? 'border-red-500/40 bg-red-500/5' : 'border-slate-700/30 bg-[#0f1117]'}`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-slate-300">구간 {i + 1}</span>
-                        <span className="text-[10px] text-slate-600">{segments.slice(0, i + 1).reduce((a, b) => a + b, 0)}m</span>
+                        <span className="text-sm font-bold text-white">구간 {i + 1}</span>
+                        <span className="text-xs text-slate-400 font-semibold">{segments.slice(0, i).reduce((a, b) => a + b, 0)}~{segments.slice(0, i + 1).reduce((a, b) => a + b, 0)}m</span>
                         {isBest && <span className="text-[10px] text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-full">🏆 최고</span>}
                         {isWorst && <span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded-full">⚠ 최저</span>}
                       </div>
@@ -335,21 +380,31 @@ function RaceAnalysis() {
           </div>
 
           {/* 종합 평가 */}
-          <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50">
-            <p className="text-xs font-semibold text-slate-400 mb-2">💡 레이스 총평</p>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              {(() => {
-                const { phaseAvg, avgPace, worstIdx } = result
-                const frontDiff = phaseAvg.front - avgPace
-                const backDiff = phaseAvg.back - avgPace
-                const midDiff = phaseAvg.middle - avgPace
-                if (backDiff > 0.5 && frontDiff < 0) return `전반에 에너지를 많이 쓴 포지티브 스플릿 패턴입니다. 구간 ${worstIdx + 1}에서 가장 크게 감속되었습니다. 전반 페이스를 1~2% 아껴서 후반 유지력을 높이면 기록 단축이 가능합니다.`
-                if (backDiff < -0.5) return `후반에 페이스를 올린 이상적인 네거티브 스플릿입니다. 후반 구간이 가장 빠르며 체력 분배가 훌륭합니다.`
-                if (midDiff < -0.3 && frontDiff > 0.3 && backDiff > 0.3) return `중반에 기어를 올리는 패턴입니다. 전반 초반 흥분을 억제하고 중반부터 가속하는 흐름은 장거리에서 효과적입니다.`
-                return `전 구간 고른 페이스를 유지했습니다. 구간 ${worstIdx + 1}이 가장 느린 구간으로, 해당 구간의 체력 분배를 집중적으로 보완하면 좋습니다.`
-              })()}
-            </p>
-          </div>
+          {(() => {
+            const feedback = getRaceFeedback(result, segments)
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {[
+                  { title: '좋은 점', color: 'green', items: feedback.good },
+                  { title: '보완할 점', color: 'red', items: feedback.issues },
+                  { title: '훈련 처방', color: 'blue', items: feedback.training },
+                ].map((section) => (
+                  <div key={section.title} className={`bg-[#1a1d27] rounded-xl p-4 border ${section.color === 'green' ? 'border-green-500/25' : section.color === 'red' ? 'border-red-500/25' : 'border-blue-500/25'}`}>
+                    <p className={`text-sm font-bold mb-3 ${section.color === 'green' ? 'text-green-400' : section.color === 'red' ? 'text-red-400' : 'text-blue-400'}`}>
+                      {section.title}
+                    </p>
+                    <div className="space-y-2">
+                      {section.items.map((item, index) => (
+                        <p key={index} className="text-sm text-slate-300 leading-relaxed bg-[#0f1117] rounded-lg border border-slate-800 px-3 py-2">
+                          {item}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>

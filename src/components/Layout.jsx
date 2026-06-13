@@ -34,7 +34,7 @@ export default function Layout({ children }) {
           <div className="flex items-center gap-2">
             <span className="text-2xl">🏊</span>
             <div>
-              <p className="text-white font-bold text-sm leading-tight">WONJUN</p>
+              <p className="text-white font-bold text-sm leading-tight">WONJUNE</p>
               <p className="text-slate-500 text-xs">2028 LA 올림픽</p>
             </div>
           </div>

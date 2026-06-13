@@ -47,8 +47,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [trendAnalysis, setTrendAnalysis] = useState('')
   const [analyzingTrend, setAnalyzingTrend] = useState(false)
+  const [trendError, setTrendError] = useState('')
   const [simulation, setSimulation] = useState('')
   const [simulating, setSimulating] = useState(false)
+  const [simError, setSimError] = useState('')
+  const [pbChartEvent, setPbChartEvent] = useState('')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -83,26 +86,34 @@ export default function DashboardPage() {
     컨디션: l.condition_score,
   }))
 
-  // 종목별 최신 PB
+  // 종목별 최고(최빠른) PB
   const latestPbs = {}
-  pbs.forEach((p) => { latestPbs[p.event] = p })
+  pbs.forEach((p) => {
+    if (!latestPbs[p.event] || timeToSeconds(p.record_time) < timeToSeconds(latestPbs[p.event].record_time)) {
+      latestPbs[p.event] = p
+    }
+  })
 
-  // FINA 포인트 데이터
-  const finaData = Object.keys(OLYMPIC_TARGETS).map((event) => {
+  // FINA 포인트 데이터 (모든 종목)
+  const allPbEvents = Object.keys(latestPbs)
+  const finaData = allPbEvents.map((event) => {
     const pb = latestPbs[event]
     const points = pb ? calcFinaPoints(event, pb.record_time) : null
-    return { event: event.replace('자유형 ', '자유형\n'), points, record: pb?.record_time }
-  }).filter((d) => d.points)
+    if (!points) return null
+    return { event, points, record: pb.record_time }
+  }).filter(Boolean).sort((a, b) => b.points - a.points)
 
-  // PB 변화 그래프 (1500m 기준)
+  // PB 변화 그래프 - 선택된 종목
+  const pbEvents = [...new Set(pbs.map(p => p.event))]
+  const selectedPbEvent = pbChartEvent || pbEvents[0] || ''
   const pbChartData = pbs
-    .filter((p) => p.event === '자유형 1500m')
+    .filter((p) => p.event === selectedPbEvent)
     .sort((a, b) => new Date(a.achieved_date) - new Date(b.achieved_date))
     .map((p) => ({
       date: p.achieved_date?.slice(2),
       기록초: Math.round(timeToSeconds(p.record_time) * 100) / 100,
       기록: p.record_time,
-      fina: calcFinaPoints('자유형 1500m', p.record_time) ?? '-',
+      fina: calcFinaPoints(selectedPbEvent, p.record_time) ?? '-',
     }))
 
   // Gap: 개인 목표 설정한 종목만 표시
@@ -138,11 +149,12 @@ export default function DashboardPage() {
 
   const runSimulation = async () => {
     setSimulating(true)
+    setSimError('')
     try {
       const result = await getGrowthSimulation(pbs, logs, profile)
       setSimulation(result)
     } catch (e) {
-      setSimulation(`시뮬레이션 오류: ${e.message}`)
+      setSimError(e.message || '시뮬레이션 오류가 발생했습니다.')
     } finally {
       setSimulating(false)
     }
@@ -151,11 +163,12 @@ export default function DashboardPage() {
   const runTrendAnalysis = async () => {
     if (logs.length === 0) return
     setAnalyzingTrend(true)
+    setTrendError('')
     try {
       const result = await getTrendAnalysis(logs, Object.values(latestPbs), profile)
       setTrendAnalysis(result)
-    } catch {
-      setTrendAnalysis('분석 중 오류가 발생했습니다.')
+    } catch (e) {
+      setTrendError(e.message || '분석 중 오류가 발생했습니다.')
     } finally {
       setAnalyzingTrend(false)
     }
@@ -217,8 +230,8 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-slate-500">원준 나이</p>
-            <p className="text-white font-bold">20세 <span className="text-slate-500 font-normal text-xs">at 올림픽</span></p>
+            <p className="text-xs text-slate-500">올림픽 참여 원준 나이</p>
+            <p className="text-white font-bold">20세</p>
           </div>
         </div>
       </div>
@@ -238,36 +251,48 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 mb-4">
             <Trophy size={15} className="text-yellow-400" />
             <h2 className="text-sm font-semibold text-slate-300">FINA 포인트</h2>
+            <span className="text-xs text-slate-500 ml-1">전체 종목</span>
           </div>
           {finaData.length === 0 ? (
             <p className="text-slate-500 text-sm">PB 기록 페이지에서 기록을 입력하면 표시됩니다.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
               {finaData.map(({ event, points, record }) => (
                 <div key={event}>
-                  <div className="flex justify-between text-sm mb-1">
+                  <div className="flex justify-between text-xs mb-1">
                     <span className="text-slate-400">{event}</span>
-                    <span className="text-white font-semibold">{points}pts</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-slate-700/40 rounded-full h-1.5">
-                      <div
-                        className={`h-1.5 rounded-full ${points >= 900 ? 'bg-yellow-400' : points >= 800 ? 'bg-blue-400' : 'bg-slate-500'}`}
-                        style={{ width: `${Math.min(100, points / 10)}%` }}
-                      />
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600">{record}</span>
+                      <span className={`font-bold ${points >= 900 ? 'text-yellow-400' : points >= 800 ? 'text-blue-400' : 'text-white'}`}>{points}pts</span>
                     </div>
-                    <span className="text-xs text-slate-500">{record}</span>
+                  </div>
+                  <div className="w-full bg-slate-700/40 rounded-full h-1.5">
+                    <div
+                      className={`h-1.5 rounded-full ${points >= 900 ? 'bg-yellow-400' : points >= 800 ? 'bg-blue-400' : 'bg-slate-500'}`}
+                      style={{ width: `${Math.min(100, points / 10)}%` }}
+                    />
                   </div>
                 </div>
               ))}
-              <p className="text-xs text-slate-600 mt-2">올림픽 A기준 ≈ 900pts 이상</p>
+              <p className="text-xs text-slate-600 pt-1">올림픽 A기준 ≈ 900pts 이상</p>
             </div>
           )}
         </div>
 
         {/* PB 변화 그래프 */}
         <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
-          <h2 className="text-sm font-semibold text-slate-300 mb-4">자유형 1500m PB 변화</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-slate-300">PB 변화 추이</h2>
+            {pbEvents.length > 0 && (
+              <select
+                value={selectedPbEvent}
+                onChange={(e) => setPbChartEvent(e.target.value)}
+                className="bg-[#0f1117] border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500"
+              >
+                {pbEvents.map(ev => <option key={ev} value={ev}>{ev}</option>)}
+              </select>
+            )}
+          </div>
           {pbChartData.length < 2 ? (
             <p className="text-slate-500 text-sm">PB 기록을 2개 이상 입력하면 그래프가 표시됩니다.</p>
           ) : (
@@ -281,7 +306,7 @@ export default function DashboardPage() {
                   tickFormatter={(v) => {
                     const m = Math.floor(v / 60)
                     const s = (v % 60).toFixed(0).padStart(2, '0')
-                    return `${m}:${s}`
+                    return m > 0 ? `${m}:${s}` : `${s}`
                   }}
                   reversed
                 />
@@ -337,7 +362,7 @@ export default function DashboardPage() {
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={weeklyVolumeData} barSize={28}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" vertical={false} />
+              <CartesianGrid stroke="transparent" />
               <XAxis dataKey="week" tick={{ fill: '#64748b', fontSize: 10 }} />
               <YAxis
                 tick={{ fill: '#64748b', fontSize: 10 }}
@@ -349,7 +374,7 @@ export default function DashboardPage() {
                 labelFormatter={(label) => `${label} 주차`}
                 labelStyle={{ color: '#94a3b8' }}
               />
-              <Bar dataKey="volume" fill="#22c55e" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="volume" fill="#22c55e" radius={[4, 4, 0, 0]} background={{ fill: 'transparent' }}>
                 {weeklyVolumeData.map((entry, index) => {
                   const isMax = entry.volume === Math.max(...weeklyVolumeData.map(d => d.volume))
                   return <Cell key={index} fill={isMax ? '#facc15' : '#22c55e'} />
@@ -415,6 +440,9 @@ export default function DashboardPage() {
             {analyzingTrend ? '분석 중...' : '분석 실행'}
           </button>
         </div>
+        {trendError && (
+          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-2">{trendError}</p>
+        )}
         {trendAnalysis ? (
           <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{trendAnalysis}</div>
         ) : (
@@ -493,9 +521,12 @@ export default function DashboardPage() {
             className="flex items-center gap-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
           >
             {simulating ? <RefreshCw size={11} className="animate-spin" /> : <BrainCircuit size={11} />}
-            {simulating ? '분석 중...' : simulation ? '재시뮬레이션' : '시뮬레이션 실행'}
+            {simulating ? '분석 중...' : '시뮬레이션 실행'}
           </button>
         </div>
+        {simError && (
+          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-2">{simError}</p>
+        )}
         {simulation ? (
           <div className="bg-[#0f1117] rounded-lg p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
             {simulation}

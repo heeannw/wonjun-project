@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import { Plus, Trophy, ChevronDown, ChevronUp, Target, Pencil, TrendingDown } from 'lucide-react'
+import TimeInput from '../components/TimeInput'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const EVENT_GROUPS = [
@@ -224,11 +225,10 @@ export default function RecordsPage() {
             </div>
             <div>
               <label className="block text-sm text-slate-400 mb-1">목표 기록</label>
-              <input
-                type="text"
+              <TimeInput
                 value={goalForm.target_time}
-                onChange={(e) => setGoalForm((f) => ({ ...f, target_time: e.target.value }))}
-                placeholder="예: 14:52.00"
+                onChange={(v) => setGoalForm((f) => ({ ...f, target_time: v }))}
+                placeholder="숫자만 입력 예: 145200"
                 className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
                 required
               />
@@ -280,11 +280,10 @@ export default function RecordsPage() {
             </div>
             <div>
               <label className="block text-sm text-slate-400 mb-1">기록 (m:ss.xx)</label>
-              <input
-                type="text"
+              <TimeInput
                 value={form.record_time}
-                onChange={(e) => setForm((f) => ({ ...f, record_time: e.target.value }))}
-                placeholder="예: 15:13.36 또는 24.73"
+                onChange={(v) => setForm((f) => ({ ...f, record_time: v }))}
+                placeholder="숫자만 입력 예: 151336"
                 className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                 required
               />

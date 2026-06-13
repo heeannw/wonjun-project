@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import { getCompetitionPrePlan, getCompetitionPostPlan, getCompetitionEvaluation } from '../lib/gemini'
 import { useProfileStore } from '../store/profileStore'
 import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, BrainCircuit, RefreshCw, ClipboardList, BarChart2 } from 'lucide-react'
+import TimeInput from '../components/TimeInput'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { timeToSeconds } from '../lib/fina'
 
@@ -283,11 +284,10 @@ export default function CompetitionPage() {
               </div>
               <div>
                 <label className="block text-xs text-slate-500 mb-1">기록</label>
-                <input
-                  type="text"
+                <TimeInput
                   value={resultForm.record_time}
-                  onChange={(e) => setResultForm((f) => ({ ...f, record_time: e.target.value }))}
-                  placeholder="예: 15:21.26"
+                  onChange={(v) => setResultForm((f) => ({ ...f, record_time: v }))}
+                  placeholder="숫자만 예: 152126"
                   className="w-full bg-[#1a1d27] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none"
                 />
               </div>

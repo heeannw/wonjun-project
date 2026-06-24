@@ -306,18 +306,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 @media (max-width: 640px) {
-  .grid-cols-2,
-  .grid-cols-3,
-  .grid-cols-4,
-  .grid-cols-5,
-  .grid-cols-6 {
+  body {
+    overflow-x: hidden;
+  }
+
+  form .grid-cols-2,
+  form .grid-cols-3 {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  .sm\:grid-cols-2,
-  .sm\:grid-cols-3,
-  .sm\:grid-cols-4 {
-    grid-template-columns: minmax(0, 1fr) !important;
+  main h1 {
+    font-size: 1.35rem !important;
+    line-height: 1.75rem !important;
   }
 
   .text-3xl {
@@ -343,8 +343,135 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     padding-right: 1rem !important;
   }
 
-  .min-w-\[72px\] {
-    min-width: 72px !important;
+  .dashboard-countdown {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.875rem;
+    padding: 1rem !important;
+  }
+
+  .dashboard-countdown-title {
+    min-width: 0;
+  }
+
+  .dashboard-countdown-age {
+    align-self: center;
+  }
+
+  .dashboard-countdown-metrics {
+    grid-column: 1 / -1;
+    display: grid !important;
+    grid-template-columns: repeat(5, auto);
+    justify-content: space-around;
+    gap: 0.5rem !important;
+    border-top: 1px solid rgb(51 65 85 / 0.45);
+    padding-top: 0.875rem;
+  }
+
+  .dashboard-countdown-metrics .text-2xl {
+    font-size: 1.4rem !important;
+  }
+
+  .dashboard-chart-card {
+    padding: 1rem !important;
+  }
+
+  .dashboard-chart-card .recharts-responsive-container {
+    height: 180px !important;
+  }
+
+  .dashboard-recent-log {
+    align-items: flex-start !important;
+  }
+
+  .training-log-summary {
+    display: block !important;
+    padding: 0.875rem !important;
+  }
+
+  .training-log-identity {
+    justify-content: space-between;
+    gap: 0.75rem !important;
+  }
+
+  .training-log-identity > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .training-log-metrics {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem !important;
+    margin-top: 0.75rem;
+  }
+
+  .training-log-metrics > span {
+    text-align: center;
+    font-size: 0.75rem;
+    line-height: 1.15rem;
+  }
+
+  .training-log-metrics > svg {
+    position: absolute;
+    right: 0.75rem;
+    top: 0.875rem;
+  }
+
+  .record-chart-card .recharts-responsive-container {
+    height: 150px !important;
+  }
+
+  .calendar-toolbar {
+    align-items: stretch !important;
+    flex-direction: column;
+    padding: 0.875rem !important;
+  }
+
+  .calendar-summary {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 0.5rem !important;
+  }
+
+  .calendar-summary > div {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.5rem !important;
+  }
+
+  .calendar-controls {
+    justify-content: flex-end;
+  }
+
+  .calendar-cell {
+    min-height: 5.5rem !important;
+    padding: 0.3rem !important;
+  }
+
+  .calendar-cell > div:first-child {
+    margin-bottom: 0.25rem !important;
+  }
+
+  .calendar-cell .w-5.h-5 {
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+
+  .calendar-event {
+    padding: 0.15rem 0.25rem !important;
+    border-radius: 0.25rem !important;
+  }
+
+  .calendar-event p {
+    font-size: 0.58rem !important;
+    line-height: 0.8rem !important;
+  }
+
+  .monthly-calendar .grid-cols-7 > div {
+    padding-left: 0.2rem !important;
+    padding-right: 0.2rem !important;
   }
 
   table {

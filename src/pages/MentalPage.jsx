@@ -90,7 +90,7 @@ export default function MentalPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-white">멘탈 일지</h1>
           <p className="text-slate-400 text-sm mt-0.5">목표를 매일 언어로 확인하세요</p>
@@ -100,7 +100,7 @@ export default function MentalPage() {
             if (showForm) resetForm()
             else setShowForm(true)
           }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+          className="flex shrink-0 items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
         >
           <Plus size={16} />
           오늘의 일지
@@ -147,13 +147,13 @@ export default function MentalPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">현재 감정 상태</label>
-              <div className="flex gap-3 mb-2">
+              <div className="flex flex-wrap gap-2 mb-2">
                 {EMOTIONS.map(({ icon, label }) => (
                   <button
                     key={icon}
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, emotion: icon }))}
-                    className={`flex flex-col items-center px-3 py-2 rounded-lg text-xs transition ${
+                    className={`flex min-w-[72px] flex-1 flex-col items-center px-2 py-2 rounded-lg text-xs transition ${
                       form.emotion === icon ? 'bg-blue-600/30 border border-blue-500' : 'bg-slate-700/30 border border-slate-700 hover:bg-slate-700/50'
                     }`}
                   >
@@ -191,15 +191,15 @@ export default function MentalPage() {
           journals.map((j) => (
             <div key={j.id} className="bg-[#1a1d27] rounded-xl border border-slate-700/50 overflow-hidden">
               <div
-                className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-700/20 transition"
+                className="flex items-center justify-between gap-3 px-5 py-3.5 cursor-pointer hover:bg-slate-700/20 transition"
                 onClick={() => setExpandedId(expandedId === j.id ? null : j.id)}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{j.emotion}</span>
                   <span className="text-white text-sm font-medium">{j.date}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500 text-xs">{j.emotion_note}</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="max-w-36 truncate text-slate-500 text-xs">{j.emotion_note}</span>
                   {expandedId === j.id ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
                 </div>
               </div>

@@ -52,10 +52,10 @@ export default function Layout({ children }) {
   return (
     <div className="min-h-screen bg-[#0f1117] flex">
       {/* Mobile top bar */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[#1a1d27]/95 backdrop-blur border-b border-slate-700/50 px-4 py-3">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[#1a1d27]/95 backdrop-blur border-b border-slate-700/50 px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-2xl shrink-0">🏊</span>
+            <span className="text-xl shrink-0">🏊</span>
             <div className="min-w-0">
               <p className="text-white font-bold text-sm leading-tight">WONJUNE</p>
               <p className="text-slate-500 text-xs truncate">2028 LA 올림픽</p>
@@ -65,7 +65,7 @@ export default function Layout({ children }) {
             <button
               type="button"
               onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
-              className="flex items-center gap-1.5 rounded-full border border-slate-700/50 bg-[#0f1117] px-3 py-2 text-xs font-semibold text-slate-300 transition theme-toggle shrink-0"
+              className="flex items-center gap-1.5 rounded-full border border-slate-700/50 bg-[#0f1117] px-2.5 py-1.5 text-xs font-semibold text-slate-300 transition theme-toggle shrink-0"
               title={theme === 'dark' ? '화이트 버전으로 변경' : '블랙 버전으로 변경'}
             >
               {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
@@ -142,7 +142,7 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Main */}
-      <main className="w-full md:ml-56 flex-1 px-4 py-5 pt-20 pb-24 md:p-6 md:min-h-screen overflow-x-hidden">
+      <main className="w-full md:ml-56 flex-1 px-3 py-4 pt-[76px] pb-[86px] md:p-6 md:min-h-screen overflow-x-hidden">
         {showThemeToggle && (
           <button
             type="button"
@@ -158,22 +158,22 @@ export default function Layout({ children }) {
       </main>
 
       {/* Mobile bottom navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#1a1d27]/95 backdrop-blur border-t border-slate-700/50 px-2 py-2">
-        <div className="flex gap-1 overflow-x-auto mobile-nav-scroll pb-1">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#1a1d27]/95 backdrop-blur border-t border-slate-700/50 px-1.5 py-1.5">
+        <div className="flex gap-1 overflow-x-auto mobile-nav-scroll">
           {(role === 'coach' ? coachNavItems : visibleNavItems).map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               end={to === '/'}
               className={({ isActive }) =>
-                `flex min-w-[72px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] transition ${
+                `flex min-w-[66px] flex-col items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[10px] transition ${
                   isActive
                     ? 'bg-blue-600/20 text-blue-400 font-semibold'
                     : 'text-slate-400'
                 }`
               }
             >
-              <Icon size={17} />
+              <Icon size={16} />
               <span className="whitespace-nowrap">{label.replace(' ', '')}</span>
             </NavLink>
           ))}

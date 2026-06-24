@@ -182,9 +182,9 @@ export default function PlanPage() {
         </div>
       </div>
 
-      <div className="bg-[#1a1d27] border border-slate-700/50 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-700/40 flex items-center justify-between">
-          <div className="flex items-baseline gap-4">
+      <div className="monthly-calendar bg-[#1a1d27] border border-slate-700/50 rounded-xl overflow-hidden">
+        <div className="calendar-toolbar px-5 py-4 border-b border-slate-700/40 flex items-center justify-between gap-3">
+          <div className="calendar-summary flex items-baseline gap-4">
             <h2 className="text-2xl font-bold text-white">{toMonthTitle(baseDate)}</h2>
             <div className="flex items-center gap-4 text-sm">
               <span className="text-slate-500">훈련 <span className="text-green-400 font-semibold">{trainingDays}일</span></span>
@@ -193,7 +193,7 @@ export default function PlanPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="calendar-controls flex items-center gap-2">
             <button onClick={prevMonth} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
               <ChevronLeft size={16} />
             </button>
@@ -226,7 +226,7 @@ export default function PlanPage() {
                 key={date}
                 type="button"
                 onClick={() => openEdit(date)}
-                className={`min-h-32 border-r border-b border-slate-700/30 last:border-r-0 p-2 text-left transition hover:bg-slate-800/70 ${
+                className={`calendar-cell min-h-32 border-r border-b border-slate-700/30 last:border-r-0 p-2 text-left transition hover:bg-slate-800/70 ${
                   isCurrentMonth ? 'bg-[#1a1d27]' : 'bg-[#141821]/70'
                 }`}
               >
@@ -243,7 +243,7 @@ export default function PlanPage() {
 
                 <div className="space-y-1">
                   {dayCompetitions.map((competition) => (
-                    <div key={competition.id} className="rounded-md bg-red-500/10 border border-red-500/25 px-2 py-1 shadow-sm">
+                    <div key={competition.id} className="calendar-event rounded-md bg-red-500/10 border border-red-500/25 px-2 py-1 shadow-sm">
                       <p className="text-xs font-medium text-red-200 truncate">
                         🚩 {competition.name}
                         {date === competition.start_date ? ' 시작' : date === (competition.end_date || competition.start_date) ? ' 종료' : ''}
@@ -251,12 +251,12 @@ export default function PlanPage() {
                     </div>
                   ))}
                   {plan?.custom_note && (
-                    <div className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1 shadow-sm">
+                    <div className="calendar-event rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1 shadow-sm">
                       <p className="text-xs font-medium text-blue-200 truncate">⭐ {getPlanTitle(plan)}</p>
                     </div>
                   )}
                   {log && (
-                    <div className="rounded-md bg-green-500/10 border border-green-500/20 px-2 py-1">
+                    <div className="calendar-event rounded-md bg-green-500/10 border border-green-500/20 px-2 py-1">
                       <p className="text-xs font-medium text-green-300 truncate">완료 {log.total_distance_m?.toLocaleString()}m</p>
                       <p className="text-[11px] text-slate-500 truncate">{log.main_event || '훈련'} · 강도 {log.rpe}</p>
                     </div>

@@ -417,7 +417,7 @@ export default function TrainingPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-white">훈련 일지</h1>
           <p className="text-slate-400 text-sm mt-0.5">매일 훈련을 기록하세요</p>
@@ -427,7 +427,7 @@ export default function TrainingPage() {
             if (showForm) resetForm()
             else setShowForm(true)
           }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+          className="flex shrink-0 items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
         >
           <Plus size={16} />
           새 일지
@@ -611,14 +611,14 @@ export default function TrainingPage() {
           logs.map((log) => (
             <div key={log.id} className="bg-[#1a1d27] rounded-xl border border-slate-700/50 overflow-hidden">
               <div
-                className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-slate-700/20 transition"
+                className="training-log-summary flex items-center justify-between gap-3 px-5 py-3.5 cursor-pointer hover:bg-slate-700/20 transition"
                 onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
               >
-                <div className="flex items-center gap-4">
+                <div className="training-log-identity flex items-center gap-4">
                   <span className="text-white font-medium text-sm">{log.date}</span>
                   <span className="text-slate-400 text-sm">{log.main_event}</span>
                 </div>
-                <div className="flex items-center gap-5 text-sm">
+                <div className="training-log-metrics flex items-center gap-5 text-sm">
                   <span className="text-blue-400 font-semibold">{log.total_distance_m}m</span>
                   <span className="text-slate-400">운동 강도 <span className="text-orange-400">{log.rpe}</span></span>
                   <span className="text-slate-400">컨디션 <span className="text-purple-400">{log.condition_score}</span></span>

@@ -359,15 +359,15 @@ export default function DashboardPage() {
           2028 LA 올림픽까지 <span className="text-blue-400 font-semibold">{daysLeft}일</span> 남았습니다
         </p>
         {/* 올림픽 카운트다운 배너 */}
-        <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-xl px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="dashboard-countdown bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-xl px-5 py-4 flex items-center justify-between">
+          <div className="dashboard-countdown-title flex items-center gap-3">
             <span className="text-2xl">🏊</span>
             <div>
               <p className="text-white font-bold text-sm">2028 LA 올림픽</p>
               <p className="text-slate-400 text-xs">2028년 7월 14일</p>
             </div>
           </div>
-          <div className="flex gap-6">
+          <div className="dashboard-countdown-metrics flex gap-6">
             <div className="flex items-baseline justify-center gap-1">
               <p className="text-blue-400 font-bold text-2xl leading-none">{daysLeft}</p>
               <p className="text-slate-500 text-xs">일</p>
@@ -383,7 +383,7 @@ export default function DashboardPage() {
               <p className="text-slate-500 text-xs">개월</p>
             </div>
           </div>
-          <div className="text-right">
+          <div className="dashboard-countdown-age text-right">
             <p className="text-xs text-slate-500">올림픽 출전 나이</p>
             <p className="text-white font-bold">20세</p>
           </div>
@@ -399,7 +399,7 @@ export default function DashboardPage() {
       </div>
 
       {/* FINA Points + PB 변화 */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* FINA 포인트 */}
         <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 relative">
           <div className="flex items-center justify-between mb-4">
@@ -481,8 +481,8 @@ export default function DashboardPage() {
         </div>
 
         {/* PB 변화 그래프 */}
-        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
-          <div className="flex items-center justify-between mb-4">
+        <div className="dashboard-chart-card bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <h2 className="text-sm font-semibold text-slate-300">PB 변화 추이</h2>
             {pbEvents.length > 0 && (
               <select
@@ -539,7 +539,7 @@ export default function DashboardPage() {
 
       {/* 훈련 추이 */}
       {trainingChartData.length > 0 && (
-        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+        <div className="dashboard-chart-card bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
           <h2 className="text-sm font-semibold text-slate-300 mb-4">훈련 추이 (최근 2주)</h2>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={trainingChartData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
@@ -578,7 +578,7 @@ export default function DashboardPage() {
 
       {/* 주간 훈련 볼륨 */}
       {weeklyVolumeData.length > 0 && (
-        <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+        <div className="dashboard-chart-card bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={15} className="text-green-400" />
             <h2 className="text-sm font-semibold text-slate-300">주간 훈련 볼륨</h2>
@@ -617,8 +617,8 @@ export default function DashboardPage() {
         <div className="space-y-3">
           {gapData.map(({ event, target, pb, gapSec, progress, isGoal, deadline }) => (
             <div key={event}>
-              <div className="flex justify-between text-sm mb-1">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-1 text-sm mb-1 sm:flex-row sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-slate-300">{event}</span>
                   {isGoal
                     ? <span className="text-xs text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">내 목표</span>
@@ -651,7 +651,7 @@ export default function DashboardPage() {
 
       {/* 종합 추세 AI 분석 */}
       <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <BrainCircuit size={15} className="text-purple-400" />
             <h2 className="text-sm font-semibold text-slate-300">종합 추세 AI 분석</h2>
@@ -682,7 +682,7 @@ export default function DashboardPage() {
       {/* 올림픽 달성 시나리오 */}
       {scenarios.length > 0 && (
         <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
             <div className="flex items-center gap-2">
               <span className="text-lg">🏅</span>
               <h2 className="text-sm font-semibold text-slate-300">올림픽 기준 달성 시나리오</h2>
@@ -699,12 +699,12 @@ export default function DashboardPage() {
               const progress = Math.min(100, Math.max(0, ((worstSec - pbSec) / (worstSec - targetSec)) * 100))
               return (
                 <div key={event}>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex flex-col gap-2 mb-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-white font-medium">{event}</span>
                       {achieved && <span className="text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full font-semibold">달성!</span>}
                     </div>
-                    <div className="flex items-center gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="text-slate-400">현재 <span className="text-white font-semibold">{latestPbs[event]?.record_time}</span></span>
                       <span className="text-slate-600">→</span>
                       <span className="text-slate-400">목표 <span className="text-blue-400 font-semibold">{target}</span></span>
@@ -734,8 +734,8 @@ export default function DashboardPage() {
 
       {/* AI 성장 시뮬레이션 */}
       <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="flex flex-wrap items-center gap-2">
             <BrainCircuit size={15} className="text-purple-400" />
             <h2 className="text-sm font-semibold text-slate-300">AI 성장 시뮬레이션</h2>
             <span className="text-xs text-slate-500">2026~2028 예측</span>
@@ -769,12 +769,12 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-2">
             {logs.slice(0, 5).map((log) => (
-              <div key={log.id} className="flex items-center justify-between py-2 border-b border-slate-700/30 last:border-0">
+              <div key={log.id} className="dashboard-recent-log flex items-center justify-between gap-3 py-2 border-b border-slate-700/30 last:border-0">
                 <div>
                   <p className="text-sm text-white">{log.date}</p>
                   <p className="text-xs text-slate-500">{log.main_event || '자유형'}</p>
                 </div>
-                <div className="flex gap-4 text-xs text-slate-400">
+                <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-xs text-slate-400">
                   <span>{log.total_distance_m?.toLocaleString()}m</span>
                   <span>운동 강도 {log.rpe}</span>
                   <span>수면 {log.sleep_hours}h</span>

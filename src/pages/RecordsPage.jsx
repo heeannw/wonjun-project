@@ -179,22 +179,22 @@ export default function RecordsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">PB 기록 관리</h1>
           <p className="text-slate-400 text-sm mt-0.5">종목별 개인 최고 기록</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex">
           <button
             onClick={() => setShowGoalForm(!showGoalForm)}
-            className="flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-sm font-semibold px-4 py-2 rounded-lg transition"
+            className="flex items-center justify-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-sm font-semibold px-3 py-2 rounded-lg transition"
           >
             <Target size={16} />
             목표 설정
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-3 py-2 rounded-lg transition"
           >
             <Plus size={16} />
             기록 추가
@@ -330,7 +330,7 @@ export default function RecordsPage() {
                 onClick={() => setExpandedGroup(isOpen ? null : group.label)}
                 className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-700/20 transition"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
                   <Trophy size={15} className={hasAny ? 'text-yellow-400' : 'text-slate-600'} />
                   <span className="text-white font-medium text-sm">{group.label}</span>
                   {hasAny && (
@@ -339,7 +339,7 @@ export default function RecordsPage() {
                     </span>
                   )}
                   {groupBestFina && (
-                    <span className="text-xs font-semibold text-yellow-300 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full">
+                    <span className="max-w-full truncate text-xs font-semibold text-yellow-300 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full">
                       최고 FINA {groupBestFina.fina} · {groupBestFina.event.replace(group.label + ' ', '')}
                     </span>
                   )}
@@ -349,7 +349,74 @@ export default function RecordsPage() {
 
               {isOpen && (
                 <div className="border-t border-slate-700/30">
-                  <table className="w-full text-sm">
+                  <div className="divide-y divide-slate-700/30 md:hidden">
+                    {groupPbs.map(({ ev, pb }) => {
+                      const fina = pb ? calcFinaPoints(ev, pb.record_time) : null
+                      const isGroupBestFina = fina && groupBestFina?.event === ev
+                      const goal = goals[ev]
+                      const gapSec = pb && goal
+                        ? (timeToSeconds(pb.record_time) - timeToSeconds(goal.target_time)).toFixed(2)
+                        : null
+                      return (
+                        <div key={ev} className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">{ev}</p>
+                              <p className="mt-1 text-xl font-bold text-white">{pb?.record_time ?? '-'}</p>
+                            </div>
+                            {fina ? (
+                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                                isGroupBestFina
+                                  ? 'border border-yellow-500/30 bg-yellow-500/10 text-yellow-300'
+                                  : fina >= 800
+                                    ? 'bg-blue-500/10 text-blue-400'
+                                    : 'bg-slate-700/40 text-slate-400'
+                              }`}>
+                                FINA {fina}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                            <div>
+                              <p className="text-slate-600">달성일</p>
+                              <p className="mt-0.5 text-slate-400">{pb?.achieved_date ?? '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-600">대회</p>
+                              <p className="mt-0.5 break-words text-slate-400">{pb?.notes ?? '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-600">목표</p>
+                              <button
+                                type="button"
+                                onClick={() => openGoalEdit(ev)}
+                                className="mt-0.5 text-left text-purple-400"
+                              >
+                                {goal?.target_time || '+ 목표 설정'}
+                              </button>
+                            </div>
+                            <div>
+                              <p className="text-slate-600">목표까지</p>
+                              <p className={`mt-0.5 font-medium ${gapSec !== null && parseFloat(gapSec) <= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                                {gapSec === null ? '-' : parseFloat(gapSec) <= 0 ? '달성' : `${gapSec}초`}
+                              </p>
+                            </div>
+                          </div>
+                          {pb && (
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(pb.id)}
+                              className="mt-3 text-xs text-red-500/70"
+                            >
+                              기록 삭제
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <table className="hidden w-full text-sm md:table">
                     <thead>
                       <tr className="text-xs text-slate-500 border-b border-slate-700/30">
                         <th className="text-left px-5 py-2">종목</th>
@@ -467,7 +534,7 @@ export default function RecordsPage() {
                             return <circle cx={cx} cy={cy} r={3} fill="#22c55e" />
                           }
                           return (
-                            <div key={ev} className="bg-[#0f1117] rounded-lg p-3 w-full">
+                            <div key={ev} className="record-chart-card bg-[#0f1117] rounded-lg p-3 w-full">
                               <div className="flex justify-between items-center mb-2">
                                 <p className="text-xs text-slate-300 font-medium">{ev}</p>
                                 <span className="text-xs text-green-400 font-semibold">▼{improvementLabel}</span>

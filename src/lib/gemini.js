@@ -1,6 +1,9 @@
 ﻿const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const GEMINI_MODEL = 'gemini-2.5-flash-lite'
-const API_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${API_KEY}`
+const GEMINI_MODELS = ['gemini-2.5-flash-lite', 'gemini-2.5-flash']
+
+function getApiUrl(model) {
+  return `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`
+}
 
 function getGeminiErrorMessage(status, err) {
   const message = err?.error?.message || ''
@@ -72,40 +75,44 @@ async function callGemini(prompt, maxTokens = 800) {
     throw new Error('VITE_GEMINI_API_KEY가 설정되어 있지 않습니다.')
   }
 
-  const retryDelays = [0, 1500, 3500]
+  const retryDelays = [0, 2000, 5000]
   let lastError
 
-  for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
-    if (retryDelays[attempt]) await wait(retryDelays[attempt])
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
+      if (retryDelays[attempt]) await wait(retryDelays[attempt])
 
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
-        }),
-      })
+      try {
+        const res = await fetch(getApiUrl(model), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+          }),
+        })
 
-      if (res.ok) {
-        const data = await res.json()
-        return cleanGeminiText(data.candidates?.[0]?.content?.parts?.[0]?.text)
+        if (res.ok) {
+          const data = await res.json()
+          return cleanGeminiText(data.candidates?.[0]?.content?.parts?.[0]?.text)
+        }
+
+        const err = await res.json().catch(() => ({}))
+        lastError = new Error(getGeminiErrorMessage(res.status, err))
+        lastError.status = res.status
+
+        if (![500, 502, 503, 504].includes(res.status)) throw lastError
+        if (attempt === retryDelays.length - 1) break
+      } catch (error) {
+        lastError = error
+        const retryable = error instanceof TypeError || [500, 502, 503, 504].includes(error?.status)
+        if (!retryable) throw error
+        if (attempt === retryDelays.length - 1) break
       }
-
-      const err = await res.json().catch(() => ({}))
-      lastError = new Error(getGeminiErrorMessage(res.status, err))
-      const retryable = [500, 502, 503, 504].includes(res.status)
-      if (!retryable || attempt === retryDelays.length - 1) throw lastError
-    } catch (error) {
-      lastError = error
-      if (attempt === retryDelays.length - 1) throw error
-      if (error instanceof TypeError) continue
-      if (!error.message?.includes('AI 요청이 몰려')) throw error
     }
   }
 
-  throw lastError || new Error('AI 요청 중 오류가 발생했습니다.')
+  throw lastError || new Error('AI 서버에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해주세요.')
 }
 
 export async function getTrendAnalysis(logs, pbs, profile) {

@@ -88,11 +88,13 @@ export default function ReportPage() {
   const [competitionResults, setCompetitionResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [aiSummary, setAiSummary] = useState('')
+  const [aiError, setAiError] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
     setAiSummary('')
+    setAiError('')
     const { start, end } = getMonthRange(year, month)
     const [logsRes, pbsRes, mentalRes, bodyRes, competitionsRes] = await Promise.all([
       supabase.from('training_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
@@ -177,6 +179,7 @@ export default function ReportPage() {
 
   const runAiSummary = async () => {
     setAnalyzing(true)
+    setAiError('')
     try {
       const result = await getMonthlyReportAnalysis({
         year,
@@ -191,7 +194,7 @@ export default function ReportPage() {
       }, profile)
       setAiSummary(result)
     } catch (e) {
-      setAiSummary(`분석 오류: ${e.message}`)
+      setAiError(e.message || 'AI 결과서를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
       setAnalyzing(false)
     }
@@ -228,6 +231,11 @@ export default function ReportPage() {
           </button>
         </div>
       </div>
+      {aiError && (
+        <div className="print:hidden mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {aiError}
+        </div>
+      )}
 
       {/* 리포트 본문 */}
       <div className="report-body bg-[#1a1d27] print:bg-white rounded-xl border border-slate-700/50 print:border-0 p-8 space-y-8">

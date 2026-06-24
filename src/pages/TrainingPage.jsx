@@ -86,6 +86,8 @@ function formatSets(sets) {
 
 function SliderField({ label, name, value, min, max, onChange, color = 'blue' }) {
   const colors = { blue: '#3b82f6', orange: '#f97316', red: '#ef4444' }
+  const trackColor = colors[color]
+  const progress = ((Number(value) - min) / (max - min)) * 100
   return (
     <div>
       <div className="flex justify-between text-sm mb-1">
@@ -99,8 +101,11 @@ function SliderField({ label, name, value, min, max, onChange, color = 'blue' })
         max={max}
         value={value}
         onChange={onChange}
-        className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-        style={{ accentColor: colors[color] }}
+        className="training-score-slider w-full h-1.5 rounded-full appearance-none cursor-pointer"
+        style={{
+          '--slider-color': trackColor,
+          background: `linear-gradient(to right, ${trackColor} 0%, ${trackColor} ${progress}%, ${trackColor}33 ${progress}%, ${trackColor}33 100%)`,
+        }}
       />
       <div className="flex justify-between text-xs text-slate-600 mt-0.5">
         <span>{min}</span><span>{max}</span>

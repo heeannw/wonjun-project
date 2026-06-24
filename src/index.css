@@ -16,6 +16,29 @@ body {
   min-height: 100vh;
 }
 
+.training-score-slider {
+  border: 1px solid color-mix(in srgb, var(--slider-color) 35%, transparent);
+}
+
+.training-score-slider::-webkit-slider-thumb {
+  width: 15px;
+  height: 15px;
+  appearance: none;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  background: var(--slider-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--slider-color) 18%, transparent);
+}
+
+.training-score-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  background: var(--slider-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--slider-color) 18%, transparent);
+}
+
 /* 날짜 입력 캘린더 아이콘 흰색 */
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);

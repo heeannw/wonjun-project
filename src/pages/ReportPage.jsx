@@ -204,28 +204,28 @@ export default function ReportPage() {
   return (
     <div>
       {/* 화면용 헤더 (인쇄 시 숨김) */}
-      <div className="print:hidden flex items-center justify-between mb-6">
-        <div>
+      <div className="report-toolbar print:hidden mb-6 flex items-center justify-between gap-4">
+        <div className="report-heading">
           <h1 className="text-xl font-bold text-white">월간 리포트</h1>
           <p className="text-slate-400 text-sm mt-0.5">월별 훈련 종합 결과서</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-[#1a1d27] border border-slate-700/50 rounded-lg px-3 py-2">
+        <div className="report-actions flex items-center gap-3">
+          <div className="report-month-control flex items-center justify-between gap-2 bg-[#1a1d27] border border-slate-700/50 rounded-lg px-3 py-2">
             <button onClick={prevMonth} className="text-slate-400 hover:text-white transition"><ChevronLeft size={16} /></button>
-            <span className="text-white text-sm font-semibold w-20 text-center">{year}년 {month}월</span>
+            <span className="whitespace-nowrap text-center text-sm font-semibold text-white">{year}년 {month}월</span>
             <button onClick={nextMonth} className="text-slate-400 hover:text-white transition"><ChevronRight size={16} /></button>
           </div>
           <button
             onClick={runAiSummary}
             disabled={analyzing || trainDays === 0}
-            className="flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-sm px-4 py-2 rounded-lg transition disabled:opacity-40"
+            className="report-action-button flex items-center justify-center gap-2 whitespace-nowrap bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-sm px-4 py-2 rounded-lg transition disabled:opacity-40"
           >
             {analyzing ? <RefreshCw size={14} className="animate-spin" /> : <BrainCircuit size={14} />}
             상세 결과서 생성
           </button>
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+            className="report-action-button flex items-center justify-center gap-2 whitespace-nowrap bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
           >
             <Printer size={14} />
             PDF 저장
@@ -253,7 +253,7 @@ export default function ReportPage() {
               {trainDays === 0 ? (
                 <p className="text-slate-500 text-sm">이번 달 훈련 기록이 없습니다.</p>
               ) : (
-                <div className="grid grid-cols-6 gap-4">
+                <div className="report-stat-grid grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
                   {[
                     { label: '훈련일수', value: `${trainDays}일` },
                     { label: '총 거리', value: `${(totalDist / 1000).toFixed(1)}km` },
@@ -275,7 +275,7 @@ export default function ReportPage() {
             {logs.length > 0 && (
               <div>
                 <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">훈련 기록</h2>
-                <table className="w-full text-sm">
+                <table className="report-training-table hidden w-full text-sm md:table">
                   <thead>
                     <tr className="text-xs text-slate-500 print:text-gray-500 border-b border-slate-700/50 print:border-gray-200">
                       <th className="text-left py-2">날짜</th>
@@ -299,6 +299,33 @@ export default function ReportPage() {
                     ))}
                   </tbody>
                 </table>
+                <div className="space-y-2 md:hidden">
+                  {logs.map((log) => (
+                    <div key={log.id} className="rounded-lg border border-slate-700/50 bg-[#0f1117] p-3">
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{log.date}</p>
+                          <p className="text-xs text-slate-500">{log.main_event || '-'}</p>
+                        </div>
+                        <p className="text-sm font-semibold text-blue-400">{(log.total_distance_m || 0).toLocaleString()}m</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div>
+                          <p className="text-[10px] text-slate-600">운동 강도</p>
+                          <p className="text-xs text-slate-300">{log.rpe ?? '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-600">컨디션</p>
+                          <p className="text-xs text-slate-300">{log.condition_score ?? '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-600">수면</p>
+                          <p className="text-xs text-slate-300">{log.sleep_hours ? `${log.sleep_hours}h` : '-'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -308,7 +335,7 @@ export default function ReportPage() {
               {monthPbs.length === 0 ? (
                 <p className="text-slate-500 text-sm">이번 달 새 PB 기록은 없습니다.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {monthPbChanges.map(({ pb, status, previousBest, deltaSec }) => (
                     <div
                       key={pb.id}
@@ -356,11 +383,10 @@ export default function ReportPage() {
             {/* 신체 및 회복 상태 */}
             <div>
               <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">신체 상태와 회복</h2>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {[
                   { label: '현재 체중', value: latestBody ? `${latestBody.weight}kg` : '-' },
                   { label: '체중 변화', value: weightChange !== null ? `${parseFloat(weightChange) > 0 ? '+' : ''}${weightChange}kg` : '-' },
-                  { label: '체지방률', value: latestBody?.body_fat ? `${latestBody.body_fat}%` : '-' },
                   { label: '신체 기록', value: `${bodyRecords.length}회` },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-xl p-4 text-center">
@@ -372,7 +398,7 @@ export default function ReportPage() {
             </div>
 
             {/* 근력 및 시합 */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div>
                 <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">근력 기록</h2>
                 {strengthRecords.length === 0 ? (
@@ -420,7 +446,7 @@ export default function ReportPage() {
             {/* 현재 PB */}
             <div>
               <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">현재 PB 기록</h2>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {mainEvents.map(ev => {
                   const pb = latestPbMap[ev]
                   const fina = pb ? calcFinaPoints(ev, pb.record_time) : null

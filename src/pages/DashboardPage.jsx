@@ -5,10 +5,11 @@ import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import { getTrendAnalysis, getGrowthSimulation } from '../lib/gemini'
 import { useProfileStore } from '../store/profileStore'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   BarChart, Bar, Cell
 } from 'recharts'
 import { Flame, Moon, Activity, Target, Trophy, BrainCircuit, RefreshCw, TrendingUp, SlidersHorizontal, X } from 'lucide-react'
+import MeasuredChart from '../components/MeasuredChart'
 
 const OLYMPIC_TARGETS = {
   '자유형 400m':  { target: '3:43.00', targetSec: 223.0 },
@@ -497,7 +498,7 @@ export default function DashboardPage() {
           {pbChartData.length < 2 ? (
             <p className="text-slate-500 text-sm">PB 기록을 2개 이상 입력하면 그래프가 표시됩니다.</p>
           ) : (
-            <ResponsiveContainer width="100%" height={160}>
+            <MeasuredChart height={160}>
               <LineChart
                 data={pbChartData}
                 margin={{ top: 8, right: 32, left: -8, bottom: 0 }}
@@ -532,7 +533,7 @@ export default function DashboardPage() {
                 />
                 <Line type="monotone" dataKey="기록초" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} />
               </LineChart>
-            </ResponsiveContainer>
+            </MeasuredChart>
           )}
         </div>
       </div>
@@ -541,7 +542,7 @@ export default function DashboardPage() {
       {trainingChartData.length > 0 && (
         <div className="dashboard-chart-card bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
           <h2 className="text-sm font-semibold text-slate-300 mb-4">훈련 추이 (최근 2주)</h2>
-          <ResponsiveContainer width="100%" height={200}>
+          <MeasuredChart height={200}>
             <LineChart data={trainingChartData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
               <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} />
@@ -572,7 +573,7 @@ export default function DashboardPage() {
               <Line yAxisId="score" type="monotone" dataKey="운동강도" stroke="#f97316" strokeWidth={2} dot={false} name="운동 강도(1-10)" />
               <Line yAxisId="score" type="monotone" dataKey="컨디션" stroke="#a855f7" strokeWidth={2} dot={false} name="컨디션(1-10)" />
             </LineChart>
-          </ResponsiveContainer>
+          </MeasuredChart>
         </div>
       )}
 
@@ -584,7 +585,7 @@ export default function DashboardPage() {
             <h2 className="text-sm font-semibold text-slate-300">주간 훈련 볼륨</h2>
             <span className="text-xs text-slate-500">최근 10주</span>
           </div>
-          <ResponsiveContainer width="100%" height={180}>
+          <MeasuredChart height={180}>
             <BarChart data={weeklyVolumeData} barSize={28}>
               <CartesianGrid stroke="transparent" />
               <XAxis dataKey="week" tick={{ fill: '#64748b', fontSize: 10 }} />
@@ -606,7 +607,7 @@ export default function DashboardPage() {
                 })}
               </Bar>
             </BarChart>
-          </ResponsiveContainer>
+          </MeasuredChart>
           <p className="text-xs text-slate-600 mt-1">노란색: 최고 볼륨 주차</p>
         </div>
       )}

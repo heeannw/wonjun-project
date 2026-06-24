@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import MeasuredChart from '../components/MeasuredChart'
 
 const defaultForm = {
   date: new Date().toISOString().slice(0, 10),
@@ -158,7 +159,7 @@ export default function BodyPage() {
           {/* 그래프 */}
           <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
             <p className="text-sm font-semibold text-slate-300 mb-4">체중 변화 그래프</p>
-            <ResponsiveContainer width="100%" height={200}>
+            <MeasuredChart height={200}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
                 <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} />
@@ -175,7 +176,7 @@ export default function BodyPage() {
                 <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
                 <Line yAxisId="weight" type="monotone" dataKey="체중" stroke="#60a5fa" strokeWidth={2} dot={{ fill: '#60a5fa', r: 3 }} connectNulls />
               </LineChart>
-            </ResponsiveContainer>
+            </MeasuredChart>
           </div>
 
           {/* 기록 리스트 */}

@@ -376,7 +376,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     padding: 1rem !important;
   }
 
-  .dashboard-chart-card .recharts-responsive-container {
+  .dashboard-chart-card .measured-chart {
     height: 180px !important;
   }
 
@@ -418,8 +418,59 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     top: 0.875rem;
   }
 
-  .record-chart-card .recharts-responsive-container {
+  .record-chart-card .measured-chart {
     height: 150px !important;
+  }
+
+  .report-toolbar {
+    align-items: stretch !important;
+    flex-direction: column;
+  }
+
+  .report-heading {
+    min-width: 0;
+  }
+
+  .report-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.5rem !important;
+    width: 100%;
+  }
+
+  .report-month-control {
+    grid-column: 1 / -1;
+    min-height: 2.75rem;
+  }
+
+  .report-action-button {
+    min-height: 2.75rem;
+    padding: 0.65rem 0.75rem !important;
+    font-size: 0.75rem !important;
+    line-height: 1rem !important;
+  }
+
+  .report-body {
+    padding: 1rem !important;
+  }
+
+  .report-body h1 {
+    overflow-wrap: normal;
+    word-break: keep-all;
+  }
+
+  .report-stat-grid > div {
+    min-width: 0;
+    padding: 0.875rem 0.5rem !important;
+  }
+
+  .report-stat-grid p {
+    word-break: keep-all;
+  }
+
+  .report-stat-grid .text-lg {
+    font-size: 1.05rem !important;
+    line-height: 1.5rem !important;
   }
 
   .calendar-toolbar {
@@ -479,7 +530,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
 
   .recharts-wrapper,
-  .recharts-responsive-container {
+  .recharts-responsive-container,
+  .measured-chart {
     max-width: 100% !important;
   }
 }

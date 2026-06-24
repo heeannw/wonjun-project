@@ -4,7 +4,8 @@ import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import { Plus, Trophy, ChevronDown, ChevronUp, Target, Pencil, TrendingDown } from 'lucide-react'
 import TimeInput from '../components/TimeInput'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import MeasuredChart from '../components/MeasuredChart'
 
 const EVENT_GROUPS = [
   {
@@ -539,7 +540,7 @@ export default function RecordsPage() {
                                 <p className="text-xs text-slate-300 font-medium">{ev}</p>
                                 <span className="text-xs text-green-400 font-semibold">▼{improvementLabel}</span>
                               </div>
-                              <ResponsiveContainer width="100%" height={120}>
+                              <MeasuredChart height={120}>
                                 <LineChart data={chartData}>
                                   <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
                                   <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9 }} />
@@ -568,7 +569,7 @@ export default function RecordsPage() {
                                   />
                                   <Line type="monotone" dataKey="초" stroke="#22c55e" strokeWidth={2} dot={<CustomDot />} />
                                 </LineChart>
-                              </ResponsiveContainer>
+                              </MeasuredChart>
                             </div>
                           )
                         })}

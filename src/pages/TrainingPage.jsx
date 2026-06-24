@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { Plus, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import MeasuredChart from '../components/MeasuredChart'
 
 const METRIC_CONFIG = {
   condition_score: { label: '컨디션', color: '#22c55e' },
@@ -149,75 +150,84 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
 
   return (
     <div className="border-b border-slate-700/30 py-3 last:border-0">
-      <div className="grid grid-cols-12 gap-2 items-center">
-        <div className="col-span-1 text-slate-500 text-xs text-center">{index + 1}</div>
-        <div className="col-span-2">
-        <select
-          value={set.type}
-          onChange={(e) => onChange(index, 'type', e.target.value)}
-          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
-        >
-          {SET_TYPES.map((type) => <option key={type}>{type}</option>)}
-        </select>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-12">
+        <div className="hidden items-end justify-center pb-2 text-xs text-slate-500 md:col-span-1 md:flex">
+          {index + 1}
         </div>
-        <div className="col-span-2">
-        <input
-          type="number"
-          value={set.distance}
-          onChange={(e) => onChange(index, 'distance', e.target.value)}
-          placeholder="거리(m)"
-          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
-        />
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-[11px] text-slate-500">종류</label>
+          <select
+            value={set.type}
+            onChange={(e) => onChange(index, 'type', e.target.value)}
+            className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+          >
+            {SET_TYPES.map((type) => <option key={type}>{type}</option>)}
+          </select>
         </div>
-        <div className="col-span-1">
-        <input
-          type="number"
-          value={set.reps}
-          onChange={(e) => onChange(index, 'reps', e.target.value)}
-          min={1}
-          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
-        />
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-[11px] text-slate-500">거리(m)</label>
+          <input
+            type="number"
+            value={set.distance}
+            onChange={(e) => onChange(index, 'distance', e.target.value)}
+            placeholder="거리(m)"
+            className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+          />
         </div>
-        <div className="col-span-1">
-        <input
-          type="number"
-          value={set.set_count ?? 1}
-          onChange={(e) => onChange(index, 'set_count', e.target.value)}
-          min={1}
-          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
-        />
+        <div className="md:col-span-1">
+          <label className="mb-1 block text-[11px] text-slate-500">횟수</label>
+          <input
+            type="number"
+            value={set.reps}
+            onChange={(e) => onChange(index, 'reps', e.target.value)}
+            min={1}
+            className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+          />
         </div>
-        <div className="col-span-2">
-        <select
-          value={set.intensity}
-          onChange={(e) => onChange(index, 'intensity', e.target.value)}
-          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
-        >
-          {INTENSITIES.map((intensity) => <option key={intensity}>{intensity}</option>)}
-        </select>
+        <div className="md:col-span-1">
+          <label className="mb-1 block text-[11px] text-slate-500">세트</label>
+          <input
+            type="number"
+            value={set.set_count ?? 1}
+            onChange={(e) => onChange(index, 'set_count', e.target.value)}
+            min={1}
+            className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+          />
         </div>
-        <div className="col-span-2">
-        <input
-          type="text"
-          value={set.note}
-          onChange={(e) => onChange(index, 'note', e.target.value)}
-          placeholder="메모"
-          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
-        />
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-[11px] text-slate-500">강도</label>
+          <select
+            value={set.intensity}
+            onChange={(e) => onChange(index, 'intensity', e.target.value)}
+            className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+          >
+            {INTENSITIES.map((intensity) => <option key={intensity}>{intensity}</option>)}
+          </select>
         </div>
-        <div className="col-span-1 flex justify-center">
+        <div className="col-span-2 md:col-span-2">
+          <label className="mb-1 block text-[11px] text-slate-500">메모</label>
+          <input
+            type="text"
+            value={set.note}
+            onChange={(e) => onChange(index, 'note', e.target.value)}
+            placeholder="메모"
+            className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div className="hidden items-end justify-center pb-2 md:col-span-1 md:flex">
           {canDelete && (
-            <button type="button" onClick={() => onDelete(index)} className="text-slate-600 hover:text-red-400 transition">
-              ×
+            <button type="button" onClick={() => onDelete(index)} className="text-xs text-slate-600 transition hover:text-red-400">
+              삭제
             </button>
           )}
         </div>
       </div>
 
-      <div className="ml-[8.333%] mt-3 grid grid-cols-1 gap-3 rounded-lg border border-slate-800 bg-slate-900/30 p-3 md:grid-cols-[minmax(0,1fr)_90px_90px_100px]">
-        <div>
-          <p className="mb-1.5 text-[11px] text-slate-500">사용 장비</p>
-          <div className="flex flex-wrap gap-1.5">
+      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-12">
+        <div className="col-span-2 md:col-span-1" />
+        <div className="col-span-2 md:col-span-5">
+          <p className="mb-1 text-[11px] text-slate-500">사용 장비</p>
+          <div className="flex min-h-[30px] flex-wrap items-center gap-1.5 rounded border border-slate-700 bg-[#0f1117] px-2 py-1">
             {EQUIPMENT_OPTIONS.map((equipment) => (
               <button
                 key={equipment}
@@ -234,8 +244,8 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
             ))}
           </div>
         </div>
-        <div>
-          <label className="mb-1.5 block text-[11px] text-slate-500">사이클 분</label>
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-[11px] text-slate-500">사이클(분)</label>
           <input
             type="number"
             value={set.cycle_minutes ?? ''}
@@ -245,8 +255,8 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
             className="w-full rounded border border-slate-700 bg-[#0f1117] px-2 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none"
           />
         </div>
-        <div>
-          <label className="mb-1.5 block text-[11px] text-slate-500">사이클 초</label>
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-[11px] text-slate-500">사이클(초)</label>
           <input
             type="number"
             value={set.cycle_seconds ?? ''}
@@ -257,8 +267,8 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
             className="w-full rounded border border-slate-700 bg-[#0f1117] px-2 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none"
           />
         </div>
-        <div>
-          <label className="mb-1.5 block text-[11px] text-slate-500">다이브 횟수</label>
+        <div className="md:col-span-1">
+          <label className="mb-1 block text-[11px] text-slate-500">다이빙(횟수)</label>
           <input
             type="number"
             value={set.dive_count ?? ''}
@@ -267,6 +277,13 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
             placeholder="0"
             className="w-full rounded border border-slate-700 bg-[#0f1117] px-2 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none"
           />
+        </div>
+        <div className="col-span-2 flex justify-end md:hidden">
+          {canDelete && (
+            <button type="button" onClick={() => onDelete(index)} className="text-xs text-red-400">
+              세트 삭제
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -502,16 +519,6 @@ export default function TrainingPage() {
               <span className="text-xs text-blue-400">총 {calcSetTotal(form.sets).toLocaleString()}m</span>
             </div>
             <div className="bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2">
-              <div className="grid grid-cols-12 gap-2 text-[11px] text-slate-600 px-1 pb-1">
-                <span className="col-span-1 text-center">#</span>
-                <span className="col-span-2">종류</span>
-                <span className="col-span-2">거리(m)</span>
-                <span className="col-span-1">횟수</span>
-                <span className="col-span-1">세트</span>
-                <span className="col-span-2">강도</span>
-                <span className="col-span-2">메모</span>
-                <span className="col-span-1" />
-              </div>
               {form.sets.map((set, index) => (
                 <div key={index}>
                   <SetRow
@@ -580,7 +587,7 @@ export default function TrainingPage() {
             <h2 className="text-sm font-semibold text-slate-300">컨디션 추이 (최근 30일)</h2>
             <span className="text-xs text-slate-500">1 낮음 · 10 높음</span>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
+          <MeasuredChart height={220}>
             <LineChart data={trendData} margin={{ top: 6, right: 18, left: -18, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
               <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} />
@@ -595,7 +602,7 @@ export default function TrainingPage() {
               <Line type="monotone" dataKey="운동강도" name="운동 강도" stroke={METRIC_CONFIG.rpe.color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
               <Line type="monotone" dataKey="신체피로" name="신체 피로" stroke={METRIC_CONFIG.forearm_fatigue.color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
             </LineChart>
-          </ResponsiveContainer>
+          </MeasuredChart>
         </div>
       )}
 

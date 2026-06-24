@@ -162,9 +162,9 @@ export async function getTrainingFeedback(todayLog, recentLogs, profile, context
   const extra = summarizeFeedbackContext(context)
   const setSummary = Array.isArray(todayLog.sets) && todayLog.sets.length
     ? todayLog.sets.map((set, index) => {
-        const total = (set.distance || 0) * (set.reps || 1)
+        const total = (set.distance || 0) * (set.reps || 1) * (set.set_count || 1)
         const note = set.note ? `, ${set.note}` : ''
-        return `${index + 1}. ${set.type} ${set.distance}m x ${set.reps} (${total}m, ${set.intensity})${note}`
+        return `${index + 1}. ${set.type} ${set.distance}m x ${set.reps}회 x ${set.set_count || 1}세트 (${total}m, ${set.intensity})${note}`
       }).join('\n')
     : ''
   const recentSummary = recentLogs.slice(0, 7).map((l) =>

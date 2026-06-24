@@ -36,12 +36,13 @@ const TRAINING_EVENTS = [
   '풀',
   '웨이트',
   '회복',
+  '회복훈련',
   '기타',
 ]
 
 const SET_TYPES = ['자유형', '배영', '평영', '접영', '개인혼영', '킥', '드릴', '풀', '웜업', '쿨다운', '기타']
-const INTENSITIES = ['저', '중', '고', '최고']
-const emptySet = { type: '자유형', distance: '', reps: 1, intensity: '중', note: '' }
+const INTENSITIES = ['최저', '저', '중', '고', '최고']
+const emptySet = { type: '자유형', distance: '', reps: 1, set_count: 1, intensity: '중', note: '' }
 
 const defaultForm = {
   date: new Date().toISOString().slice(0, 10),
@@ -57,7 +58,10 @@ const defaultForm = {
 }
 
 function calcSetTotal(sets) {
-  return sets.reduce((sum, set) => sum + (parseInt(set.distance) || 0) * (parseInt(set.reps) || 1), 0)
+  return sets.reduce(
+    (sum, set) => sum + (parseInt(set.distance) || 0) * (parseInt(set.reps) || 1) * (parseInt(set.set_count) || 1),
+    0,
+  )
 }
 
 function getValidSets(sets) {
@@ -66,6 +70,7 @@ function getValidSets(sets) {
       type: set.type,
       distance: parseInt(set.distance) || 0,
       reps: parseInt(set.reps) || 1,
+      set_count: parseInt(set.set_count) || 1,
       intensity: set.intensity,
       note: set.note?.trim() || '',
     }))
@@ -77,9 +82,9 @@ function formatSets(sets) {
   if (!validSets.length) return ''
   return validSets
     .map((set, index) => {
-      const total = set.distance * set.reps
+      const total = set.distance * set.reps * set.set_count
       const note = set.note ? ` · ${set.note}` : ''
-      return `${index + 1}. ${set.type} ${set.distance}m × ${set.reps} (${total}m, ${set.intensity})${note}`
+      return `${index + 1}. ${set.type} ${set.distance}m × ${set.reps}회 × ${set.set_count}세트 (${total}m, ${set.intensity})${note}`
     })
     .join('\n')
 }
@@ -145,6 +150,15 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
           className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
         />
       </div>
+      <div className="col-span-1">
+        <input
+          type="number"
+          value={set.set_count ?? 1}
+          onChange={(e) => onChange(index, 'set_count', e.target.value)}
+          min={1}
+          className="w-full bg-[#0f1117] border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+        />
+      </div>
       <div className="col-span-2">
         <select
           value={set.intensity}
@@ -154,7 +168,7 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
           {INTENSITIES.map((intensity) => <option key={intensity}>{intensity}</option>)}
         </select>
       </div>
-      <div className="col-span-3">
+      <div className="col-span-2">
         <input
           type="text"
           value={set.note}
@@ -456,8 +470,9 @@ export default function TrainingPage() {
                 <span className="col-span-2">종류</span>
                 <span className="col-span-2">거리(m)</span>
                 <span className="col-span-1">횟수</span>
+                <span className="col-span-1">세트</span>
                 <span className="col-span-2">강도</span>
-                <span className="col-span-3">메모</span>
+                <span className="col-span-2">메모</span>
                 <span className="col-span-1" />
               </div>
               {form.sets.map((set, index) => (
@@ -578,7 +593,7 @@ export default function TrainingPage() {
                         {log.sets.map((set, index) => (
                           <div key={index} className="flex items-center justify-between text-xs">
                             <span className="text-slate-300">
-                              {index + 1}. {set.type} {set.distance}m × {set.reps}
+                              {index + 1}. {set.type} {set.distance}m × {set.reps}회 × {set.set_count || 1}세트
                               {set.note ? <span className="text-slate-500"> · {set.note}</span> : null}
                             </span>
                             <span className="text-slate-500">{set.intensity}</span>

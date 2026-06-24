@@ -6,6 +6,10 @@ function getGeminiErrorMessage(status, err) {
   const message = err?.error?.message || ''
   const reason = err?.error?.status || ''
 
+  if (status === 500 || status === 502 || status === 503 || status === 504) {
+    return '현재 AI 요청이 몰려 플랜을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.'
+  }
+
   if (status === 429) {
     const detail = message || reason
     return detail
@@ -18,6 +22,10 @@ function getGeminiErrorMessage(status, err) {
   }
 
   return message || `Gemini API 오류 ${status}`
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
 function cleanGeminiText(text) {
@@ -64,20 +72,40 @@ async function callGemini(prompt, maxTokens = 800) {
     throw new Error('VITE_GEMINI_API_KEY가 설정되어 있지 않습니다.')
   }
 
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
-    }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(getGeminiErrorMessage(res.status, err))
+  const retryDelays = [0, 1500, 3500]
+  let lastError
+
+  for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
+    if (retryDelays[attempt]) await wait(retryDelays[attempt])
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        return cleanGeminiText(data.candidates?.[0]?.content?.parts?.[0]?.text)
+      }
+
+      const err = await res.json().catch(() => ({}))
+      lastError = new Error(getGeminiErrorMessage(res.status, err))
+      const retryable = [500, 502, 503, 504].includes(res.status)
+      if (!retryable || attempt === retryDelays.length - 1) throw lastError
+    } catch (error) {
+      lastError = error
+      if (attempt === retryDelays.length - 1) throw error
+      if (error instanceof TypeError) continue
+      if (!error.message?.includes('AI 요청이 몰려')) throw error
+    }
   }
-  const data = await res.json()
-  return cleanGeminiText(data.candidates?.[0]?.content?.parts?.[0]?.text)
+
+  throw lastError || new Error('AI 요청 중 오류가 발생했습니다.')
 }
 
 export async function getTrendAnalysis(logs, pbs, profile) {
@@ -212,14 +240,13 @@ ${extra.competitionSummary || '기록 없음'}
 작성 형식:
 1. 오늘 상태 판단: 1문장
 2. 종합 리스크: 1문장
-3. 다음 훈련 권고: 1문장
-4. 주의할 점: 1문장
+3. 주의할 점: 1문장
 
 마크다운 문법은 쓰지 마.
 과한 칭찬이나 응원 문구는 쓰지 마.
 시합 D-14 이내면 기록 욕심보다 피로 관리와 테이퍼를 우선한다.
 시합 D+7 이내면 회복과 몸 상태 확인을 우선한다.
-신체 피로도가 7 이상이면 반드시 회복 또는 부하 조절 권고를 포함한다.
+신체 피로도가 7 이상이면 주의할 점에 회복 또는 부하 조절 필요성을 포함한다.
 `.trim()
 
   return callGemini(prompt, 600)

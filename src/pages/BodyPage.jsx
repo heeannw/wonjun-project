@@ -7,7 +7,6 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 const defaultForm = {
   date: new Date().toISOString().slice(0, 10),
   weight: '',
-  body_fat: '',
   notes: '',
 }
 
@@ -39,7 +38,6 @@ export default function BodyPage() {
     setForm({
       date: record.date || defaultForm.date,
       weight: record.weight ?? '',
-      body_fat: record.body_fat ?? '',
       notes: record.notes || '',
     })
     setEditingId(record.id)
@@ -53,7 +51,6 @@ export default function BodyPage() {
       user_id: user.id,
       date: form.date,
       weight: parseFloat(form.weight),
-      body_fat: form.body_fat ? parseFloat(form.body_fat) : null,
       notes: form.notes || null,
     }
     if (editingId) {
@@ -74,7 +71,6 @@ export default function BodyPage() {
   const chartData = records.map((r) => ({
     date: r.date.slice(2),
     체중: r.weight,
-    체지방: r.body_fat ?? undefined,
   }))
 
   const latest = records[records.length - 1]
@@ -88,7 +84,7 @@ export default function BodyPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-white">신체 기록</h1>
-          <p className="text-slate-400 text-sm mt-0.5">체중 및 체지방 변화 추적</p>
+          <p className="text-slate-400 text-sm mt-0.5">체중 변화와 신체 상태를 기록하세요</p>
         </div>
         <button
           onClick={() => {
@@ -120,13 +116,6 @@ export default function BodyPage() {
                 className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" required />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">체지방률 % (선택)</label>
-              <input type="number" step="0.1" value={form.body_fat}
-                onChange={(e) => setForm((f) => ({ ...f, body_fat: e.target.value }))}
-                placeholder="예: 12.3"
-                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
               <label className="block text-xs text-slate-400 mb-1">메모 (선택)</label>
               <input type="text" value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
@@ -154,17 +143,15 @@ export default function BodyPage() {
               <p className="text-2xl font-bold text-white">{latest?.weight}<span className="text-sm text-slate-500 ml-1">kg</span></p>
             </div>
             <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50 text-center">
-              <p className="text-xs text-slate-500 mb-1">체지방률</p>
-              <p className="text-2xl font-bold text-white">
-                {latest?.body_fat ? <>{latest.body_fat}<span className="text-sm text-slate-500 ml-1">%</span></> : <span className="text-slate-600">-</span>}
-              </p>
-            </div>
-            <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50 text-center">
               <p className="text-xs text-slate-500 mb-1">총 변화</p>
               <p className={`text-2xl font-bold ${weightChange === null ? 'text-slate-600' : parseFloat(weightChange) < 0 ? 'text-blue-400' : parseFloat(weightChange) > 0 ? 'text-orange-400' : 'text-slate-400'}`}>
                 {weightChange !== null ? `${parseFloat(weightChange) > 0 ? '+' : ''}${weightChange}` : '-'}
                 {weightChange !== null && <span className="text-sm text-slate-500 ml-1">kg</span>}
               </p>
+            </div>
+            <div className="bg-[#1a1d27] rounded-xl p-4 border border-slate-700/50 text-center">
+              <p className="text-xs text-slate-500 mb-1">최근 측정일</p>
+              <p className="text-lg font-bold text-white">{latest?.date || '-'}</p>
             </div>
           </div>
 
@@ -181,24 +168,12 @@ export default function BodyPage() {
                   tick={{ fill: '#64748b', fontSize: 10 }}
                   tickFormatter={(v) => `${v}kg`}
                 />
-                {records.some(r => r.body_fat) && (
-                  <YAxis
-                    yAxisId="fat"
-                    orientation="right"
-                    domain={['auto', 'auto']}
-                    tick={{ fill: '#64748b', fontSize: 10 }}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                )}
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #334155', borderRadius: 6, fontSize: 11 }}
-                  formatter={(value, name) => name === '체중' ? [`${value}kg`, '체중'] : [`${value}%`, '체지방률']}
+                  formatter={(value) => [`${value}kg`, '체중']}
                 />
                 <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
                 <Line yAxisId="weight" type="monotone" dataKey="체중" stroke="#60a5fa" strokeWidth={2} dot={{ fill: '#60a5fa', r: 3 }} connectNulls />
-                {records.some(r => r.body_fat) && (
-                  <Line yAxisId="fat" type="monotone" dataKey="체지방" stroke="#f97316" strokeWidth={2} dot={{ fill: '#f97316', r: 3 }} connectNulls />
-                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -210,7 +185,6 @@ export default function BodyPage() {
                 <tr className="text-xs text-slate-500 border-b border-slate-700/30">
                   <th className="text-left px-5 py-2.5">날짜</th>
                   <th className="text-right px-4 py-2.5">체중</th>
-                  <th className="text-right px-4 py-2.5">체지방률</th>
                   <th className="text-left px-4 py-2.5">메모</th>
                   <th className="px-4 py-2.5"></th>
                 </tr>
@@ -220,7 +194,6 @@ export default function BodyPage() {
                   <tr key={r.id} className="border-b border-slate-700/20 last:border-0 hover:bg-slate-700/10">
                     <td className="px-5 py-2.5 text-slate-300">{r.date}</td>
                     <td className="px-4 py-2.5 text-right text-white font-semibold">{r.weight}kg</td>
-                    <td className="px-4 py-2.5 text-right text-slate-400">{r.body_fat ? `${r.body_fat}%` : '-'}</td>
                     <td className="px-4 py-2.5 text-slate-500 text-xs">{r.notes ?? '-'}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-2">

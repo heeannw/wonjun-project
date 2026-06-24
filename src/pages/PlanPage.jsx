@@ -6,11 +6,19 @@ import { ChevronLeft, ChevronRight, Plus, X, Check } from 'lucide-react'
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function toISODate(date) {
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function parseLocalDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
 }
 
 function getMonthGrid(baseDate) {
-  const base = new Date(baseDate)
+  const base = parseLocalDate(baseDate)
   const year = base.getFullYear()
   const month = base.getMonth()
   const first = new Date(year, month, 1)
@@ -29,12 +37,12 @@ function getMonthGrid(baseDate) {
 }
 
 function toMonthTitle(dateStr) {
-  const d = new Date(dateStr)
+  const d = parseLocalDate(dateStr)
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월`
 }
 
 function toModalDateLabel(dateStr) {
-  const d = new Date(dateStr)
+  const d = parseLocalDate(dateStr)
   const day = DAYS[d.getDay()]
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${day}요일`
 }
@@ -45,8 +53,8 @@ function getPlanTitle(plan) {
 
 function getDateRange(startDate, endDate) {
   const dates = []
-  const start = new Date(startDate)
-  const end = new Date(endDate || startDate)
+  const start = parseLocalDate(startDate)
+  const end = parseLocalDate(endDate || startDate)
   const current = new Date(start)
 
   while (current <= end) {
@@ -59,7 +67,7 @@ function getDateRange(startDate, endDate) {
 
 export default function PlanPage() {
   const user = useAuthStore((s) => s.user)
-  const [baseDate, setBaseDate] = useState(new Date().toISOString().slice(0, 10))
+  const [baseDate, setBaseDate] = useState(toISODate(new Date()))
   const [plans, setPlans] = useState({})
   const [logs, setLogs] = useState({})
   const [competitions, setCompetitions] = useState({})
@@ -69,7 +77,7 @@ export default function PlanPage() {
   const monthCells = getMonthGrid(baseDate)
   const rangeStart = monthCells[0].date
   const rangeEnd = monthCells[monthCells.length - 1].date
-  const today = new Date().toISOString().slice(0, 10)
+  const today = toISODate(new Date())
 
   const fetchData = async () => {
     const [plansRes, logsRes, competitionsRes] = await Promise.all([
@@ -113,13 +121,13 @@ export default function PlanPage() {
   useEffect(() => { fetchData() }, [baseDate])
 
   const prevMonth = () => {
-    const d = new Date(baseDate)
+    const d = parseLocalDate(baseDate)
     d.setMonth(d.getMonth() - 1)
     setBaseDate(toISODate(d))
   }
 
   const nextMonth = () => {
-    const d = new Date(baseDate)
+    const d = parseLocalDate(baseDate)
     d.setMonth(d.getMonth() + 1)
     setBaseDate(toISODate(d))
   }

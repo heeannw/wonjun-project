@@ -47,6 +47,7 @@ export default function CompetitionPage() {
   const [planTab, setPlanTab] = useState({}) // { competitionId: 'pre' | 'post' }
   const [histEvent, setHistEvent] = useState('')
   const [editingId, setEditingId] = useState(null)
+  const [planErrors, setPlanErrors] = useState({})
 
   const fetchAll = async () => {
     const [compRes, pbsRes, goalsRes] = await Promise.all([
@@ -147,17 +148,22 @@ export default function CompetitionPage() {
 
   const generatePlan = async (competition, type) => {
     const key = `${competition.id}-${type}`
+    setPlanErrors((current) => ({ ...current, [key]: '' }))
     setGenerating((g) => ({ ...g, [key]: true }))
     try {
       const text = type === 'pre'
         ? await getCompetitionPrePlan(competition, latestPbs, profile)
         : await getCompetitionPostPlan(competition, latestPbs, profile)
       const field = type === 'pre' ? 'pre_plan' : 'post_plan'
-      await supabase.from('competitions').update({ [field]: text }).eq('id', competition.id)
+      const { error: saveError } = await supabase.from('competitions').update({ [field]: text }).eq('id', competition.id)
+      if (saveError) throw new Error(`생성된 플랜 저장 실패: ${saveError.message}`)
       setCompetitions((cs) => cs.map((c) => c.id === competition.id ? { ...c, [field]: text } : c))
       setPlanTab((t) => ({ ...t, [competition.id]: type }))
     } catch (e) {
-      alert(e.message || '플랜 생성 중 오류가 발생했습니다.')
+      setPlanErrors((current) => ({
+        ...current,
+        [key]: e.message || '플랜 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+      }))
     } finally {
       setGenerating((g) => ({ ...g, [key]: false }))
     }
@@ -230,6 +236,13 @@ export default function CompetitionPage() {
           {c.post_plan ? '후훈 플랜 재생성' : '시합 후 1주 플랜 생성'}
         </button>
       </div>
+      {(planErrors[`${c.id}-pre`] || planErrors[`${c.id}-post`]) && (
+        <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+          <p className="text-xs leading-relaxed text-red-300">
+            {planErrors[`${c.id}-pre`] || planErrors[`${c.id}-post`]}
+          </p>
+        </div>
+      )}
       {(c.pre_plan || c.post_plan) && (
         <div>
           <div className="flex gap-1 mb-2">
@@ -515,6 +528,13 @@ export default function CompetitionPage() {
                         ? (selectedComp.pre_plan ? '전훈 플랜 재생성' : '시합 전 2주 플랜 생성')
                         : (selectedComp.post_plan ? '후훈 플랜 재생성' : '시합 후 1주 플랜 생성')}
                     </button>
+                    {planErrors[`${selectedComp.id}-${planSubTab}`] && (
+                      <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+                        <p className="text-xs leading-relaxed text-red-300">
+                          {planErrors[`${selectedComp.id}-${planSubTab}`]}
+                        </p>
+                      </div>
+                    )}
                     {planSubTab === 'pre' && selectedComp.pre_plan && (
                       <div className="bg-[#0f1117] rounded-lg p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
                         {selectedComp.pre_plan}

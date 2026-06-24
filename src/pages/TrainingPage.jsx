@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { getTrainingFeedback } from '../lib/gemini'
-import { useProfileStore } from '../store/profileStore'
-import { Plus, ChevronDown, ChevronUp, Bot, Pencil } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 const METRIC_CONFIG = {
@@ -275,57 +273,13 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
   )
 }
 
-async function fetchFeedbackContext(userId) {
-  const [strengthRes, bodyRes, competitionsRes] = await Promise.all([
-    supabase
-      .from('strength_records')
-      .select('date, exercise, weight, reps, sets, notes')
-      .eq('user_id', userId)
-      .order('date', { ascending: false })
-      .limit(12),
-    supabase
-      .from('body_records')
-      .select('date, weight, body_fat, notes')
-      .eq('user_id', userId)
-      .order('date', { ascending: false })
-      .limit(5),
-    supabase
-      .from('competitions')
-      .select('id, name, start_date, end_date, events, pool_type, notes')
-      .eq('user_id', userId)
-      .order('start_date', { ascending: false })
-      .limit(8),
-  ])
-
-  const competitions = competitionsRes.data || []
-  const competitionIds = competitions.map((c) => c.id)
-  const resultsRes = competitionIds.length
-    ? await supabase
-        .from('competition_results')
-        .select('competition_id, event, record_time, rank, notes')
-        .eq('user_id', userId)
-        .in('competition_id', competitionIds)
-        .order('created_at', { ascending: false })
-    : { data: [] }
-
-  return {
-    strengthRecords: strengthRes.data || [],
-    bodyRecords: bodyRes.data || [],
-    competitions,
-    competitionResults: resultsRes.data || [],
-  }
-}
-
 export default function TrainingPage() {
   const user = useAuthStore((s) => s.user)
-  const profile = useProfileStore((s) => s.profile)
   const [logs, setLogs] = useState([])
   const [form, setForm] = useState(defaultForm)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
-  const [feedbacks, setFeedbacks] = useState({})
-  const [generatingFeedback, setGeneratingFeedback] = useState(false)
   const [editingId, setEditingId] = useState(null)
 
   const trendData = [...logs]
@@ -348,23 +302,9 @@ export default function TrainingPage() {
       .order('date', { ascending: false })
       .limit(50)
     setLogs(data || [])
-    if (data?.length) fetchFeedbacks(data.map((l) => l.id))
   }
 
   useEffect(() => { fetchLogs() }, [])
-
-  const fetchFeedbacks = async (logIds) => {
-    if (!logIds.length) return
-    const { data } = await supabase
-      .from('training_feedback')
-      .select('*')
-      .in('log_id', logIds)
-    if (data) {
-      const map = {}
-      data.forEach((f) => { map[f.log_id] = f.feedback })
-      setFeedbacks(map)
-    }
-  }
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -380,6 +320,16 @@ export default function TrainingPage() {
   }
 
   const addSet = () => setForm((f) => ({ ...f, sets: [...f.sets, { ...emptySet }] }))
+  const insertSet = (index) => {
+    setForm((current) => ({
+      ...current,
+      sets: [
+        ...current.sets.slice(0, index),
+        { ...emptySet },
+        ...current.sets.slice(index),
+      ],
+    }))
+  }
   const deleteSet = (index) => setForm((f) => ({ ...f, sets: f.sets.filter((_, i) => i !== index) }))
 
   const resetForm = () => {
@@ -452,44 +402,11 @@ export default function TrainingPage() {
       savedLog = fallbackRes.data
     }
 
-    const wasEditing = Boolean(editingId)
+    const savedLogId = savedLog?.id
     resetForm()
     setSubmitting(false)
     await fetchLogs()
-
-    // AI 피드백 생성
-    if (savedLog) {
-      setGeneratingFeedback(true)
-      setExpandedId(savedLog.id)
-      try {
-        const recentLogs = logs.slice(0, 7)
-        const feedbackContext = await fetchFeedbackContext(user.id)
-        const feedbackText = await getTrainingFeedback(savedLog, recentLogs, profile, feedbackContext)
-        if (wasEditing) {
-          const { data: existingFeedback } = await supabase
-            .from('training_feedback')
-            .select('id')
-            .eq('log_id', savedLog.id)
-            .maybeSingle()
-          if (existingFeedback) {
-            await supabase.from('training_feedback').update({ feedback: feedbackText }).eq('id', existingFeedback.id)
-          } else {
-            await supabase.from('training_feedback').insert({ user_id: user.id, log_id: savedLog.id, feedback: feedbackText })
-          }
-        } else {
-          await supabase.from('training_feedback').insert({
-            user_id: user.id,
-            log_id: savedLog.id,
-            feedback: feedbackText,
-          })
-        }
-        setFeedbacks((prev) => ({ ...prev, [savedLog.id]: feedbackText }))
-      } catch (e) {
-        setFeedbacks((prev) => ({ ...prev, [savedLog.id]: e.message || 'AI 피드백 생성 중 오류가 발생했습니다.' }))
-      } finally {
-        setGeneratingFeedback(false)
-      }
-    }
+    if (savedLogId) setExpandedId(savedLogId)
   }
 
   const handleDelete = async (id) => {
@@ -596,14 +513,28 @@ export default function TrainingPage() {
                 <span className="col-span-1" />
               </div>
               {form.sets.map((set, index) => (
-                <SetRow
-                  key={index}
-                  set={set}
-                  index={index}
-                  onChange={handleSetChange}
-                  onDelete={deleteSet}
-                  canDelete={form.sets.length > 1}
-                />
+                <div key={index}>
+                  <SetRow
+                    set={set}
+                    index={index}
+                    onChange={handleSetChange}
+                    onDelete={deleteSet}
+                    canDelete={form.sets.length > 1}
+                  />
+                  {index < form.sets.length - 1 && (
+                    <div className="relative flex items-center justify-center py-1">
+                      <div className="absolute inset-x-0 h-px bg-slate-800" />
+                      <button
+                        type="button"
+                        onClick={() => insertSet(index + 1)}
+                        className="relative inline-flex items-center gap-1 rounded-full border border-slate-700 bg-[#0f1117] px-2.5 py-1 text-[11px] text-blue-400 transition hover:border-blue-500/50 hover:text-blue-300"
+                      >
+                        <Plus size={12} />
+                        여기에 세트 삽입
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
               <button type="button" onClick={addSet} className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition">
                 + 세트 추가
@@ -731,21 +662,6 @@ export default function TrainingPage() {
                       </div>
                     </div>
                   )}
-
-                  {/* AI 피드백 */}
-                  <div className="mt-3 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2.5">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Bot size={13} className="text-blue-400" />
-                      <span className="text-xs text-blue-400 font-medium">AI 코치 피드백</span>
-                    </div>
-                    {generatingFeedback && expandedId === log.id ? (
-                      <p className="text-xs text-slate-400 animate-pulse">분석 중...</p>
-                    ) : feedbacks[log.id] ? (
-                      <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{feedbacks[log.id]}</p>
-                    ) : (
-                      <p className="text-xs text-slate-500">피드백 없음</p>
-                    )}
-                  </div>
 
                   <div className="mt-3 flex gap-3">
                     <button

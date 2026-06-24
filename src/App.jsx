@@ -14,7 +14,6 @@ import CompetitionPage from './pages/CompetitionPage'
 import ReportPage from './pages/ReportPage'
 import BodyPage from './pages/BodyPage'
 import PacePage from './pages/PacePage'
-import StrengthPage from './pages/StrengthPage'
 import ProfilePage from './pages/ProfilePage'
 import CoachPage from './pages/CoachPage'
 import CoachFeedbackPage from './pages/CoachFeedbackPage'
@@ -67,7 +66,7 @@ export default function App() {
         <Route path="/body" element={<PrivateRoute><BodyPage /></PrivateRoute>} />
         <Route path="/report" element={<PrivateRoute><ReportPage /></PrivateRoute>} />
         <Route path="/pace" element={<PrivateRoute><PacePage /></PrivateRoute>} />
-        <Route path="/strength" element={<PrivateRoute><StrengthPage /></PrivateRoute>} />
+        <Route path="/strength" element={<Navigate to="/" replace />} />
         <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
         <Route path="/coach-feedback" element={<PrivateRoute><CoachFeedbackPage /></PrivateRoute>} />
         <Route path="/coach" element={<PrivateRoute audience="coach"><CoachPage /></PrivateRoute>} />

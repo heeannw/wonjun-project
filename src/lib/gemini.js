@@ -178,6 +178,9 @@ export async function getTrainingFeedback(todayLog, recentLogs, profile, context
 날짜: ${todayLog.date}
 총 거리: ${todayLog.total_distance_m}m
 훈련 종목: ${todayLog.main_event}
+사용 장비: ${todayLog.equipment?.length ? todayLog.equipment.join(', ') : '없음'}
+사이클: ${todayLog.cycle_minutes || todayLog.cycle_seconds ? `${todayLog.cycle_minutes || 0}분 ${todayLog.cycle_seconds || 0}초` : '기록 없음'}
+다이브: ${todayLog.dive_count ? `${todayLog.dive_count}회` : '기록 없음'}
 운동 강도: ${todayLog.rpe}/10
 컨디션: ${todayLog.condition_score}/10
 수면: ${todayLog.sleep_hours}시간

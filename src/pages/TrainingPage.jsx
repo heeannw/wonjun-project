@@ -42,13 +42,17 @@ const TRAINING_EVENTS = [
 
 const SET_TYPES = ['자유형', '배영', '평영', '접영', '개인혼영', '킥', '드릴', '풀', '웜업', '쿨다운', '기타']
 const INTENSITIES = ['최저', '저', '중', '고', '최고']
+const EQUIPMENT_OPTIONS = ['킥판', '풀부이', '패들', '스노클', '숏핀', '롱핀', '밴드']
 const emptySet = { type: '자유형', distance: '', reps: 1, set_count: 1, intensity: '중', note: '' }
 
 const defaultForm = {
   date: new Date().toISOString().slice(0, 10),
   total_distance_m: '',
   main_event: '자유형 1500m',
-  stroke_count_avg: '',
+  equipment: [],
+  cycle_minutes: '',
+  cycle_seconds: '',
+  dive_count: '',
   rpe: 7,
   sleep_hours: '',
   condition_score: 7,
@@ -292,6 +296,15 @@ export default function TrainingPage() {
     })
   }
 
+  const toggleEquipment = (equipment) => {
+    setForm((current) => ({
+      ...current,
+      equipment: current.equipment.includes(equipment)
+        ? current.equipment.filter((item) => item !== equipment)
+        : [...current.equipment, equipment],
+    }))
+  }
+
   const addSet = () => setForm((f) => ({ ...f, sets: [...f.sets, { ...emptySet }] }))
   const deleteSet = (index) => setForm((f) => ({ ...f, sets: f.sets.filter((_, i) => i !== index) }))
 
@@ -306,7 +319,10 @@ export default function TrainingPage() {
       date: log.date || defaultForm.date,
       total_distance_m: log.total_distance_m ?? '',
       main_event: log.main_event || defaultForm.main_event,
-      stroke_count_avg: log.stroke_count_avg ?? '',
+      equipment: Array.isArray(log.equipment) ? log.equipment : [],
+      cycle_minutes: log.cycle_minutes ?? '',
+      cycle_seconds: log.cycle_seconds ?? '',
+      dive_count: log.dive_count ?? '',
       rpe: log.rpe ?? 7,
       sleep_hours: log.sleep_hours ?? '',
       condition_score: log.condition_score ?? 7,
@@ -331,7 +347,10 @@ export default function TrainingPage() {
       ...form,
       user_id: user.id,
       total_distance_m: parseInt(form.total_distance_m) || 0,
-      stroke_count_avg: parseInt(form.stroke_count_avg) || null,
+      equipment: form.equipment,
+      cycle_minutes: parseInt(form.cycle_minutes) || null,
+      cycle_seconds: parseInt(form.cycle_seconds) || null,
+      dive_count: parseInt(form.dive_count) || null,
       rpe: parseInt(form.rpe),
       sleep_hours: parseFloat(form.sleep_hours) || null,
       condition_score: parseInt(form.condition_score),
@@ -470,17 +489,6 @@ export default function TrainingPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">평균 스트로크 수 (선택)</label>
-              <input
-                type="number"
-                name="stroke_count_avg"
-                value={form.stroke_count_avg}
-                onChange={handleChange}
-                placeholder="예: 38"
-                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
               <label className="block text-sm text-slate-400 mb-1">수면 시간 (h)</label>
               <input
                 type="number"
@@ -489,6 +497,66 @@ export default function TrainingPage() {
                 onChange={handleChange}
                 step="0.5"
                 placeholder="예: 7.5"
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm text-slate-400 mb-2">사용 장비 (복수 선택)</label>
+            <div className="flex flex-wrap gap-2">
+              {EQUIPMENT_OPTIONS.map((equipment) => (
+                <button
+                  key={equipment}
+                  type="button"
+                  onClick={() => toggleEquipment(equipment)}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                    form.equipment.includes(equipment)
+                      ? 'border-blue-500 bg-blue-600/20 text-blue-300'
+                      : 'border-slate-700 text-slate-500 hover:border-slate-500'
+                  }`}
+                >
+                  {equipment}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">사이클 (분)</label>
+              <input
+                type="number"
+                name="cycle_minutes"
+                value={form.cycle_minutes}
+                onChange={handleChange}
+                min={0}
+                placeholder="예: 1"
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">사이클 (초)</label>
+              <input
+                type="number"
+                name="cycle_seconds"
+                value={form.cycle_seconds}
+                onChange={handleChange}
+                min={0}
+                max={59}
+                placeholder="예: 30"
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">다이브 횟수</label>
+              <input
+                type="number"
+                name="dive_count"
+                value={form.dive_count}
+                onChange={handleChange}
+                min={0}
+                placeholder="예: 8"
                 className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -620,8 +688,25 @@ export default function TrainingPage() {
                 <div className="px-5 pb-4 border-t border-slate-700/30">
                   <div className="grid grid-cols-3 gap-3 mt-3 text-sm">
                     <div><span className="text-slate-500">수면</span> <span className="text-white ml-2">{log.sleep_hours ?? '-'}h</span></div>
-                    <div><span className="text-slate-500">스트로크</span> <span className="text-white ml-2">{log.stroke_count_avg ?? '-'}</span></div>
+                    <div>
+                      <span className="text-slate-500">사이클</span>
+                      <span className="text-white ml-2">
+                        {log.cycle_minutes || log.cycle_seconds
+                          ? `${log.cycle_minutes || 0}분 ${log.cycle_seconds || 0}초`
+                          : '-'}
+                      </span>
+                    </div>
                     <div><span className="text-slate-500">신체 피로</span> <span className="text-red-400 ml-2">{log.forearm_fatigue}/10</span></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+                    <div>
+                      <span className="text-slate-500">사용 장비</span>
+                      <span className="text-white ml-2">{log.equipment?.length ? log.equipment.join(', ') : '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">다이브</span>
+                      <span className="text-white ml-2">{log.dive_count ? `${log.dive_count}회` : '-'}</span>
+                    </div>
                   </div>
                   {log.notes && (
                     <p className="text-slate-400 text-sm mt-3 bg-slate-700/20 rounded-lg px-3 py-2">{log.notes}</p>

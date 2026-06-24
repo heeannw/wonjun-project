@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useProfileStore } from '../store/profileStore'
 import { getMentalFeedback } from '../lib/gemini'
-import { Plus, ChevronDown, ChevronUp, Bot } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, Bot, Pencil } from 'lucide-react'
 
 const EMOTIONS = [
   { icon: '😤', label: '집중' },
@@ -34,6 +34,7 @@ export default function MentalPage() {
   const [expandedId, setExpandedId] = useState(null)
   const [feedbacks, setFeedbacks] = useState({})
   const [generatingId, setGeneratingId] = useState(null)
+  const [editingId, setEditingId] = useState(null)
 
   const fetch = async () => {
     const { data } = await supabase
@@ -58,20 +59,41 @@ export default function MentalPage() {
     setForm((f) => ({ ...f, [name]: value }))
   }
 
+  const resetForm = () => {
+    setForm(defaultForm)
+    setEditingId(null)
+    setShowForm(false)
+  }
+
+  const handleEdit = (journal) => {
+    setForm({
+      date: journal.date || defaultForm.date,
+      final_goal: journal.final_goal || '',
+      todays_focus: journal.todays_focus || '',
+      good_point: journal.good_point || '',
+      improve_point: journal.improve_point || '',
+      emotion: journal.emotion || '😊',
+      emotion_note: journal.emotion_note || '',
+      message_to_tomorrow: journal.message_to_tomorrow || '',
+    })
+    setEditingId(journal.id)
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const { data: inserted, error } = await supabase
-      .from('mental_journals')
-      .insert({ ...form, user_id: user.id })
-      .select()
-      .single()
+    const payload = { ...form, user_id: user.id }
+    const query = editingId
+      ? supabase.from('mental_journals').update(payload).eq('id', editingId)
+      : supabase.from('mental_journals').insert(payload)
+    const { data: inserted, error } = await query.select().single()
     if (error) {
       alert(error.message || '멘탈 일지 저장 중 오류가 발생했습니다.')
       return
     }
 
-    setForm(defaultForm)
-    setShowForm(false)
+    resetForm()
     setExpandedId(inserted.id)
     setGeneratingId(inserted.id)
 
@@ -95,7 +117,10 @@ export default function MentalPage() {
           <p className="text-slate-400 text-sm mt-0.5">목표를 매일 언어로 확인하세요</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) resetForm()
+            else setShowForm(true)
+          }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
         >
           <Plus size={16} />
@@ -105,6 +130,7 @@ export default function MentalPage() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+          <h2 className="text-sm font-semibold text-slate-300 mb-4">{editingId ? '멘탈 일지 수정' : '멘탈 일지 작성'}</h2>
           <div className="mb-4">
             <label className="block text-sm text-slate-400 mb-1">날짜</label>
             <input type="date" name="date" value={form.date} onChange={handleChange}
@@ -170,8 +196,8 @@ export default function MentalPage() {
           </div>
 
           <div className="flex gap-3">
-            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">저장</button>
-            <button type="button" onClick={() => setShowForm(false)} className="bg-slate-700 hover:bg-slate-600 text-white text-sm px-5 py-2 rounded-lg transition">취소</button>
+            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">{editingId ? '수정 완료' : '저장'}</button>
+            <button type="button" onClick={resetForm} className="bg-slate-700 hover:bg-slate-600 text-white text-sm px-5 py-2 rounded-lg transition">취소</button>
           </div>
         </form>
       )}
@@ -235,6 +261,13 @@ export default function MentalPage() {
                       </button>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleEdit(j)}
+                    className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition"
+                  >
+                    <Pencil size={12} /> 수정
+                  </button>
                 </div>
               )}
             </div>

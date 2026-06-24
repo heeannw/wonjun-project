@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { getCompetitionPrePlan, getCompetitionPostPlan, getCompetitionEvaluation } from '../lib/gemini'
 import { useProfileStore } from '../store/profileStore'
-import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, BrainCircuit, RefreshCw, ClipboardList, BarChart2 } from 'lucide-react'
+import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, BrainCircuit, RefreshCw, ClipboardList, BarChart2, Pencil } from 'lucide-react'
 import TimeInput from '../components/TimeInput'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { timeToSeconds } from '../lib/fina'
@@ -46,6 +46,7 @@ export default function CompetitionPage() {
   const [evaluation, setEvaluation] = useState({}) // { competitionId: text }
   const [planTab, setPlanTab] = useState({}) // { competitionId: 'pre' | 'post' }
   const [histEvent, setHistEvent] = useState('')
+  const [editingId, setEditingId] = useState(null)
 
   const fetchAll = async () => {
     const [compRes, pbsRes, goalsRes] = await Promise.all([
@@ -97,11 +98,36 @@ export default function CompetitionPage() {
     }))
   }
 
+  const resetForm = () => {
+    setForm(defaultForm)
+    setEditingId(null)
+    setShowForm(false)
+  }
+
+  const handleEdit = (competition) => {
+    setForm({
+      name: competition.name || '',
+      start_date: competition.start_date || '',
+      end_date: competition.end_date || '',
+      location: competition.location || '',
+      pool_type: competition.pool_type || '50m',
+      events: Array.isArray(competition.events) ? competition.events : [],
+      notes: competition.notes || '',
+    })
+    setEditingId(competition.id)
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    await supabase.from('competitions').insert({ ...form, user_id: user.id })
-    setForm(defaultForm)
-    setShowForm(false)
+    const payload = { ...form, user_id: user.id }
+    if (editingId) {
+      await supabase.from('competitions').update(payload).eq('id', editingId)
+    } else {
+      await supabase.from('competitions').insert(payload)
+    }
+    resetForm()
     fetchAll()
   }
 
@@ -376,7 +402,10 @@ export default function CompetitionPage() {
         </div>
         {pageTab === 'schedule' && (
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (showForm) resetForm()
+              else setShowForm(true)
+            }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
           >
             <Plus size={16} />
@@ -768,7 +797,7 @@ export default function CompetitionPage() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-300">시합 정보 입력</h2>
+          <h2 className="text-sm font-semibold text-slate-300">{editingId ? '시합 일정 수정' : '시합 정보 입력'}</h2>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-xs text-slate-400 mb-1">대회명</label>
@@ -819,8 +848,8 @@ export default function CompetitionPage() {
               className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
           </div>
           <div className="flex gap-3">
-            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">저장</button>
-            <button type="button" onClick={() => setShowForm(false)} className="bg-slate-700 hover:bg-slate-600 text-white text-sm px-5 py-2 rounded-lg transition">취소</button>
+            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">{editingId ? '수정 완료' : '저장'}</button>
+            <button type="button" onClick={resetForm} className="bg-slate-700 hover:bg-slate-600 text-white text-sm px-5 py-2 rounded-lg transition">취소</button>
           </div>
         </form>
       )}
@@ -873,9 +902,14 @@ export default function CompetitionPage() {
                       )}
                       {c.notes && <p className="text-xs text-slate-400 mt-3">{c.notes}</p>}
                       <PlanSection c={c} />
-                      <button onClick={() => handleDelete(c.id)} className="mt-4 text-xs text-red-500/60 hover:text-red-400 transition flex items-center gap-1">
-                        <Trash2 size={11} /> 삭제
-                      </button>
+                      <div className="mt-4 flex gap-3">
+                        <button onClick={() => handleEdit(c)} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1">
+                          <Pencil size={11} /> 수정
+                        </button>
+                        <button onClick={() => handleDelete(c.id)} className="text-xs text-red-500/60 hover:text-red-400 transition flex items-center gap-1">
+                          <Trash2 size={11} /> 삭제
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -921,9 +955,14 @@ export default function CompetitionPage() {
                       )}
                       {c.notes && <p className="text-xs text-slate-500 mt-2">{c.notes}</p>}
                       <ResultSection c={c} />
-                      <button onClick={() => handleDelete(c.id)} className="mt-4 text-xs text-red-500/60 hover:text-red-400 transition flex items-center gap-1">
-                        <Trash2 size={11} /> 삭제
-                      </button>
+                      <div className="mt-4 flex gap-3">
+                        <button onClick={() => handleEdit(c)} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1">
+                          <Pencil size={11} /> 수정
+                        </button>
+                        <button onClick={() => handleDelete(c.id)} className="text-xs text-red-500/60 hover:text-red-400 transition flex items-center gap-1">
+                          <Trash2 size={11} /> 삭제
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

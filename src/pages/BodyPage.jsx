@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 const defaultForm = {
@@ -16,6 +16,7 @@ export default function BodyPage() {
   const [records, setRecords] = useState([])
   const [form, setForm] = useState(defaultForm)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState(null)
 
   const fetchRecords = async () => {
     const { data } = await supabase
@@ -28,17 +29,39 @@ export default function BodyPage() {
 
   useEffect(() => { fetchRecords() }, [])
 
+  const resetForm = () => {
+    setForm(defaultForm)
+    setEditingId(null)
+    setShowForm(false)
+  }
+
+  const handleEdit = (record) => {
+    setForm({
+      date: record.date || defaultForm.date,
+      weight: record.weight ?? '',
+      body_fat: record.body_fat ?? '',
+      notes: record.notes || '',
+    })
+    setEditingId(record.id)
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    await supabase.from('body_records').insert({
+    const payload = {
       user_id: user.id,
       date: form.date,
       weight: parseFloat(form.weight),
       body_fat: form.body_fat ? parseFloat(form.body_fat) : null,
       notes: form.notes || null,
-    })
-    setForm(defaultForm)
-    setShowForm(false)
+    }
+    if (editingId) {
+      await supabase.from('body_records').update(payload).eq('id', editingId)
+    } else {
+      await supabase.from('body_records').insert(payload)
+    }
+    resetForm()
     fetchRecords()
   }
 
@@ -68,7 +91,10 @@ export default function BodyPage() {
           <p className="text-slate-400 text-sm mt-0.5">체중 및 체지방 변화 추적</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) resetForm()
+            else setShowForm(true)
+          }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
         >
           <Plus size={16} />
@@ -78,6 +104,7 @@ export default function BodyPage() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
+          <h2 className="text-sm font-semibold text-slate-300 mb-4">{editingId ? '신체 기록 수정' : '신체 기록 입력'}</h2>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-xs text-slate-400 mb-1">날짜</label>
@@ -108,8 +135,8 @@ export default function BodyPage() {
             </div>
           </div>
           <div className="flex gap-3">
-            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">저장</button>
-            <button type="button" onClick={() => setShowForm(false)} className="bg-slate-700 hover:bg-slate-600 text-white text-sm px-5 py-2 rounded-lg transition">취소</button>
+            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">{editingId ? '수정 완료' : '저장'}</button>
+            <button type="button" onClick={resetForm} className="bg-slate-700 hover:bg-slate-600 text-white text-sm px-5 py-2 rounded-lg transition">취소</button>
           </div>
         </form>
       )}
@@ -196,9 +223,14 @@ export default function BodyPage() {
                     <td className="px-4 py-2.5 text-right text-slate-400">{r.body_fat ? `${r.body_fat}%` : '-'}</td>
                     <td className="px-4 py-2.5 text-slate-500 text-xs">{r.notes ?? '-'}</td>
                     <td className="px-4 py-2.5">
-                      <button onClick={() => handleDelete(r.id)} className="text-red-500/50 hover:text-red-400 transition">
-                        <Trash2 size={13} />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => handleEdit(r)} className="text-blue-500/70 hover:text-blue-400 transition" title="수정">
+                          <Pencil size={13} />
+                        </button>
+                        <button onClick={() => handleDelete(r.id)} className="text-red-500/50 hover:text-red-400 transition" title="삭제">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

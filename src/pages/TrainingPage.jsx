@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { getTrainingFeedback } from '../lib/gemini'
 import { useProfileStore } from '../store/profileStore'
-import { Plus, ChevronDown, ChevronUp, Bot } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, Bot, Pencil } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 const METRIC_CONFIG = {
@@ -239,6 +239,7 @@ export default function TrainingPage() {
   const [expandedId, setExpandedId] = useState(null)
   const [feedbacks, setFeedbacks] = useState({})
   const [generatingFeedback, setGeneratingFeedback] = useState(false)
+  const [editingId, setEditingId] = useState(null)
 
   const trendData = [...logs]
     .reverse()
@@ -294,6 +295,32 @@ export default function TrainingPage() {
   const addSet = () => setForm((f) => ({ ...f, sets: [...f.sets, { ...emptySet }] }))
   const deleteSet = (index) => setForm((f) => ({ ...f, sets: f.sets.filter((_, i) => i !== index) }))
 
+  const resetForm = () => {
+    setForm(defaultForm)
+    setEditingId(null)
+    setShowForm(false)
+  }
+
+  const handleEdit = (log) => {
+    setForm({
+      date: log.date || defaultForm.date,
+      total_distance_m: log.total_distance_m ?? '',
+      main_event: log.main_event || defaultForm.main_event,
+      stroke_count_avg: log.stroke_count_avg ?? '',
+      rpe: log.rpe ?? 7,
+      sleep_hours: log.sleep_hours ?? '',
+      condition_score: log.condition_score ?? 7,
+      forearm_fatigue: log.forearm_fatigue ?? 3,
+      sets: Array.isArray(log.sets) && log.sets.length
+        ? log.sets.map((set) => ({ ...emptySet, ...set, set_count: set.set_count || 1 }))
+        : [{ ...emptySet }],
+      notes: log.notes || '',
+    })
+    setEditingId(log.id)
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubmitting(true)
@@ -313,22 +340,20 @@ export default function TrainingPage() {
       notes: baseNotes || null,
     }
 
-    const { data: inserted, error } = await supabase
-      .from('training_logs')
-      .insert(payload)
-      .select()
-      .single()
+    const query = editingId
+      ? supabase.from('training_logs').update(payload).eq('id', editingId)
+      : supabase.from('training_logs').insert(payload)
+    const { data: inserted, error } = await query.select().single()
 
     let savedLog = inserted
     if (error) {
       const fallbackPayload = { ...payload }
       delete fallbackPayload.sets
       fallbackPayload.notes = [baseNotes, setSummary ? `세트 구성:\n${setSummary}` : ''].filter(Boolean).join('\n\n') || null
-      const fallbackRes = await supabase
-        .from('training_logs')
-        .insert(fallbackPayload)
-        .select()
-        .single()
+      const fallbackQuery = editingId
+        ? supabase.from('training_logs').update(fallbackPayload).eq('id', editingId)
+        : supabase.from('training_logs').insert(fallbackPayload)
+      const fallbackRes = await fallbackQuery.select().single()
       if (fallbackRes.error) {
         setSubmitting(false)
         alert(fallbackRes.error.message || error.message || '훈련 일지 저장 중 오류가 발생했습니다.')
@@ -337,8 +362,8 @@ export default function TrainingPage() {
       savedLog = fallbackRes.data
     }
 
-    setForm(defaultForm)
-    setShowForm(false)
+    const wasEditing = Boolean(editingId)
+    resetForm()
     setSubmitting(false)
     await fetchLogs()
 
@@ -350,11 +375,24 @@ export default function TrainingPage() {
         const recentLogs = logs.slice(0, 7)
         const feedbackContext = await fetchFeedbackContext(user.id)
         const feedbackText = await getTrainingFeedback(savedLog, recentLogs, profile, feedbackContext)
-        await supabase.from('training_feedback').insert({
-          user_id: user.id,
-          log_id: savedLog.id,
-          feedback: feedbackText,
-        })
+        if (wasEditing) {
+          const { data: existingFeedback } = await supabase
+            .from('training_feedback')
+            .select('id')
+            .eq('log_id', savedLog.id)
+            .maybeSingle()
+          if (existingFeedback) {
+            await supabase.from('training_feedback').update({ feedback: feedbackText }).eq('id', existingFeedback.id)
+          } else {
+            await supabase.from('training_feedback').insert({ user_id: user.id, log_id: savedLog.id, feedback: feedbackText })
+          }
+        } else {
+          await supabase.from('training_feedback').insert({
+            user_id: user.id,
+            log_id: savedLog.id,
+            feedback: feedbackText,
+          })
+        }
         setFeedbacks((prev) => ({ ...prev, [savedLog.id]: feedbackText }))
       } catch (e) {
         setFeedbacks((prev) => ({ ...prev, [savedLog.id]: e.message || 'AI 피드백 생성 중 오류가 발생했습니다.' }))
@@ -378,7 +416,10 @@ export default function TrainingPage() {
           <p className="text-slate-400 text-sm mt-0.5">매일 훈련을 기록하세요</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) resetForm()
+            else setShowForm(true)
+          }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
         >
           <Plus size={16} />
@@ -389,7 +430,7 @@ export default function TrainingPage() {
       {/* Input Form */}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6">
-          <h2 className="text-sm font-semibold text-slate-300 mb-4">훈련 기록 입력</h2>
+          <h2 className="text-sm font-semibold text-slate-300 mb-4">{editingId ? '훈련 기록 수정' : '훈련 기록 입력'}</h2>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm text-slate-400 mb-1">날짜</label>
@@ -509,11 +550,11 @@ export default function TrainingPage() {
               disabled={submitting}
               className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-lg transition"
             >
-              {submitting ? '저장 중...' : '저장'}
+              {submitting ? '저장 중...' : editingId ? '수정 완료' : '저장'}
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={resetForm}
               className="bg-slate-700 hover:bg-slate-600 text-white text-sm px-5 py-2 rounded-lg transition"
             >
               취소
@@ -618,12 +659,22 @@ export default function TrainingPage() {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => handleDelete(log.id)}
-                    className="mt-3 text-xs text-red-500 hover:text-red-400 transition"
-                  >
-                    삭제
-                  </button>
+                  <div className="mt-3 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(log)}
+                      className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition"
+                    >
+                      <Pencil size={12} /> 수정
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(log.id)}
+                      className="text-xs text-red-500 hover:text-red-400 transition"
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

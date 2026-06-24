@@ -84,7 +84,6 @@ export default function ReportPage() {
   const [pbs, setPbs] = useState([])
   const [mentalLogs, setMentalLogs] = useState([])
   const [bodyRecords, setBodyRecords] = useState([])
-  const [strengthRecords, setStrengthRecords] = useState([])
   const [competitions, setCompetitions] = useState([])
   const [competitionResults, setCompetitionResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -95,12 +94,11 @@ export default function ReportPage() {
     setLoading(true)
     setAiSummary('')
     const { start, end } = getMonthRange(year, month)
-    const [logsRes, pbsRes, mentalRes, bodyRes, strengthRes, competitionsRes] = await Promise.all([
+    const [logsRes, pbsRes, mentalRes, bodyRes, competitionsRes] = await Promise.all([
       supabase.from('training_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
       supabase.from('personal_bests').select('*').eq('user_id', user.id),
       supabase.from('mental_journals').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
       supabase.from('body_records').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
-      supabase.from('strength_records').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date'),
       supabase.from('competitions').select('*').eq('user_id', user.id).lte('start_date', end).or(`end_date.gte.${start},end_date.is.null`).order('start_date'),
     ])
     const compIds = competitionsRes.data?.map((c) => c.id) || []
@@ -111,7 +109,6 @@ export default function ReportPage() {
     setPbs(pbsRes.data || [])
     setMentalLogs(mentalRes.data || [])
     setBodyRecords(bodyRes.data || [])
-    setStrengthRecords(strengthRes.data || [])
     setCompetitions(competitionsRes.data || [])
     setCompetitionResults(resultsRes.data || [])
     setLoading(false)
@@ -188,7 +185,6 @@ export default function ReportPage() {
         monthPbs,
         bodyRecords,
         mentalLogs,
-        strengthRecords,
         competitions,
         competitionResults,
         latestPbs: Object.values(latestPbMap),
@@ -397,50 +393,29 @@ export default function ReportPage() {
               </div>
             </div>
 
-            {/* 근력 및 시합 */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div>
-                <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">근력 기록</h2>
-                {strengthRecords.length === 0 ? (
-                  <p className="text-slate-500 text-sm">이번 달 근력 기록이 없습니다.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {strengthRecords.slice(-6).map((r) => (
-                      <div key={r.id} className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-lg px-3 py-2 text-sm">
-                        <span className="text-slate-500 print:text-gray-500 mr-2">{r.date}</span>
-                        <span className="text-slate-300 print:text-gray-700">{r.exercise}</span>
-                        <span className="text-slate-500 print:text-gray-500 ml-2">
-                          {r.weight ? `${r.weight}kg ` : ''}{r.reps ? `${r.reps}회 ` : ''}{r.sets ? `${r.sets}세트` : ''}
-                        </span>
+            {/* 시합 및 결과 */}
+            <div>
+              <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">시합 및 결과</h2>
+              {competitions.length === 0 ? (
+                <p className="text-slate-500 text-sm">이번 달 시합 일정이 없습니다.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+                  {competitions.map((c) => {
+                    const results = competitionResults.filter((r) => r.competition_id === c.id)
+                    return (
+                      <div key={c.id} className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-lg px-3 py-2 text-sm">
+                        <p className="text-slate-300 print:text-gray-700 font-medium">{c.name}</p>
+                        <p className="text-xs text-slate-500 print:text-gray-500">{c.start_date} ~ {c.end_date || c.start_date}</p>
+                        {results.length > 0 && (
+                          <p className="text-xs text-slate-400 print:text-gray-600 mt-1">
+                            {results.map((r) => `${r.event} ${r.record_time || '-'}`).join(' / ')}
+                          </p>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h2 className="text-sm font-bold text-slate-300 print:text-gray-700 uppercase tracking-wider mb-4">시합 및 결과</h2>
-                {competitions.length === 0 ? (
-                  <p className="text-slate-500 text-sm">이번 달 시합 일정이 없습니다.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {competitions.map((c) => {
-                      const results = competitionResults.filter((r) => r.competition_id === c.id)
-                      return (
-                        <div key={c.id} className="bg-[#0f1117] print:bg-gray-50 print:border print:border-gray-200 rounded-lg px-3 py-2 text-sm">
-                          <p className="text-slate-300 print:text-gray-700 font-medium">{c.name}</p>
-                          <p className="text-xs text-slate-500 print:text-gray-500">{c.start_date} ~ {c.end_date || c.start_date}</p>
-                          {results.length > 0 && (
-                            <p className="text-xs text-slate-400 print:text-gray-600 mt-1">
-                              {results.map((r) => `${r.event} ${r.record_time || '-'}`).join(' / ')}
-                            </p>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             {/* 현재 PB */}

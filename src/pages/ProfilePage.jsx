@@ -69,7 +69,6 @@ export default function ProfilePage() {
   const [logs, setLogs] = useState([])
   const [bodyRecords, setBodyRecords] = useState([])
   const [mentalLogs, setMentalLogs] = useState([])
-  const [strengthRecords, setStrengthRecords] = useState([])
   const [competitions, setCompetitions] = useState([])
   const [competitionResults, setCompetitionResults] = useState([])
   const [loading, setLoading] = useState(true)
@@ -79,13 +78,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const [profileRes, pbsRes, logsRes, bodyRes, mentalRes, strengthRes, competitionsRes, competitionResultsRes] = await Promise.all([
+      const [profileRes, pbsRes, logsRes, bodyRes, mentalRes, competitionsRes, competitionResultsRes] = await Promise.all([
         supabase.from('athlete_profiles').select('*').eq('user_id', user.id).single(),
         supabase.from('personal_bests').select('*').eq('user_id', user.id).order('achieved_date', { ascending: true }),
         supabase.from('training_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
         supabase.from('body_records').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(5),
         supabase.from('mental_journals').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
-        supabase.from('strength_records').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
         supabase.from('competitions').select('*').eq('user_id', user.id).order('start_date', { ascending: true }),
         supabase.from('competition_results').select('*').eq('user_id', user.id),
       ])
@@ -106,7 +104,6 @@ export default function ProfilePage() {
       setLogs(logsRes.data || [])
       setBodyRecords(bodyRes.data || [])
       setMentalLogs(mentalRes.data || [])
-      setStrengthRecords(strengthRes.data || [])
       setCompetitions(competitionsRes.data || [])
       setCompetitionResults(competitionResultsRes.data || [])
       setLoading(false)
@@ -210,7 +207,6 @@ export default function ProfilePage() {
     recentLogs.length > 0,
     bodyRecords.length > 0,
     mentalLogs.length > 0,
-    strengthRecords.length > 0,
     competitions.length > 0,
   ].filter(Boolean).length
 
@@ -258,7 +254,6 @@ export default function ProfilePage() {
     upcomingCompetition && `다가오는 시합 ${upcomingCompetition.name} 전에는 목표 페이스, 출전 종목별 레이스 전략, 회복일 배치를 먼저 확정하세요.`,
     mainEventCoverage < 1 && form.main_events.length > 0 && `전문 종목 ${form.main_events.length}개 중 PB가 없는 종목이 있습니다. 주종목 판단을 위해 최소 기준 기록을 먼저 채우세요.`,
     !latestBody && '신체 기록이 없어 체중·체성분 변화와 경기력 저하의 관계를 확인하기 어렵습니다.',
-    !strengthRecords.length && '근력 기록이 없어 웨이트 변화와 수영 기록의 관계를 볼 수 없습니다.',
   ].filter(Boolean).slice(0, 5)
 
   if (loading) return <div className="text-slate-400 text-sm">불러오는 중...</div>

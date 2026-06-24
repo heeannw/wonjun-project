@@ -148,17 +148,8 @@ PB 기록과 최근 훈련 방향을 연결해서 현재 방향이 기록 단축
 }
 
 function summarizeFeedbackContext(context = {}) {
-  const strengthSummary = (context.strengthRecords || []).slice(0, 6).map((r) => {
-    const load = [
-      r.weight ? `${r.weight}kg` : null,
-      r.reps ? `${r.reps}회` : null,
-      r.sets ? `${r.sets}세트` : null,
-    ].filter(Boolean).join(' ')
-    return `${r.date}: ${r.exercise}${load ? ` ${load}` : ''}${r.notes ? `, ${r.notes}` : ''}`
-  }).join('\n')
-
   const bodySummary = (context.bodyRecords || []).slice(0, 5).map((r) =>
-    `${r.date}: 체중 ${r.weight ?? '-'}kg${r.body_fat ? `, 체지방 ${r.body_fat}%` : ''}${r.notes ? `, ${r.notes}` : ''}`
+    `${r.date}: 체중 ${r.weight ?? '-'}kg${r.notes ? `, ${r.notes}` : ''}`
   ).join('\n')
 
   const resultMap = {}
@@ -179,7 +170,6 @@ function summarizeFeedbackContext(context = {}) {
   }).join('\n')
 
   return {
-    strengthSummary,
     bodySummary,
     competitionSummary,
   }
@@ -221,9 +211,6 @@ ${setSummary || '기록 없음'}
 [최근 7일 훈련 기록]
 ${recentSummary || '기록 없음'}
 
-[최근 근력 기록]
-${extra.strengthSummary || '기록 없음'}
-
 [최근 신체 기록]
 ${extra.bodySummary || '기록 없음'}
 
@@ -233,9 +220,8 @@ ${extra.competitionSummary || '기록 없음'}
 판단 기준:
 1. 오늘 훈련량과 운동 강도
 2. 최근 7일 피로 누적과 컨디션 변화
-3. 최근 근력 훈련으로 인한 피로 가능성
-4. 체중/체지방 등 신체 변화
-5. 시합이 가까운지, 또는 시합 후 회복 기간인지
+3. 체중 등 신체 변화
+4. 시합이 가까운지, 또는 시합 후 회복 기간인지
 
 작성 형식:
 1. 오늘 상태 판단: 1문장
@@ -299,7 +285,6 @@ export async function getMonthlyReportAnalysis(reportData, profile) {
     monthPbs = [],
     bodyRecords = [],
     mentalLogs = [],
-    strengthRecords = [],
     competitions = [],
     competitionResults = [],
     latestPbs = [],
@@ -313,9 +298,6 @@ export async function getMonthlyReportAnalysis(reportData, profile) {
   const bodySummary = bodyRecords.map((r) => `${r.date}: 체중 ${r.weight}kg${r.body_fat ? `, 체지방 ${r.body_fat}%` : ''}${r.notes ? `, ${r.notes}` : ''}`).join('\n')
   const mentalSummary = mentalLogs.map((m) =>
     `${m.date}: 감정 ${m.emotion || '-'} ${m.emotion_note || ''}, 목표 "${m.final_goal || '-'}", 집중 "${m.todays_focus || '-'}", 개선 "${m.improve_point || '-'}"`
-  ).join('\n')
-  const strengthSummary = strengthRecords.map((r) =>
-    `${r.date}: ${r.exercise}${r.weight ? ` ${r.weight}kg` : ''}${r.reps ? ` ${r.reps}회` : ''}${r.sets ? ` ${r.sets}세트` : ''}${r.notes ? `, ${r.notes}` : ''}`
   ).join('\n')
   const competitionSummary = competitions.map((comp) => {
     const results = competitionResults
@@ -343,9 +325,6 @@ ${bodySummary || '기록 없음'}
 [멘탈 일지]
 ${mentalSummary || '기록 없음'}
 
-[근력 기록]
-${strengthSummary || '기록 없음'}
-
 [시합 일정 및 결과]
 ${competitionSummary || '기록 없음'}
 
@@ -364,7 +343,7 @@ ${competitionSummary || '기록 없음'}
 이번 달 PB 갱신 여부와 현재 주요 PB를 연결해 경기력 변화 가능성을 4~6문장으로 분석한다.
 
 4. 신체 상태와 회복
-체중, 체지방, 수면, 컨디션, 신체 피로, 근력 기록을 연결해 4~6문장으로 분석한다.
+체중, 수면, 컨디션, 신체 피로를 연결해 4~6문장으로 분석한다.
 
 5. 멘탈 상태
 감정, 목표 선명도, 집중 내용, 개선 과제를 바탕으로 4~6문장으로 분석한다.

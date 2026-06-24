@@ -227,7 +227,7 @@ function SetRow({ set, index, onChange, onDelete, canDelete }) {
         <div className="col-span-2 md:col-span-1" />
         <div className="col-span-2 md:col-span-5">
           <p className="mb-1 text-[11px] text-slate-500">사용 장비</p>
-          <div className="flex min-h-[30px] flex-wrap items-center gap-1.5 rounded border border-slate-700 bg-[#0f1117] px-2 py-1">
+          <div className="flex min-h-[30px] flex-wrap items-center gap-1.5 py-1">
             {EQUIPMENT_OPTIONS.map((equipment) => (
               <button
                 key={equipment}

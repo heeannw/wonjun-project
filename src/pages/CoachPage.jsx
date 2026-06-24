@@ -78,7 +78,6 @@ export default function CoachPage() {
     pbs: [],
     mentalLogs: [],
     bodyRecords: [],
-    strengthRecords: [],
     competitions: [],
     competitionResults: [],
     notes: [],
@@ -141,12 +140,11 @@ export default function CoachPage() {
     if (!athleteId) return
     setLoading(true)
     try {
-      const [logsRes, pbsRes, mentalRes, bodyRes, strengthRes, competitionsRes, notesRes, repliesRes] = await Promise.all([
+      const [logsRes, pbsRes, mentalRes, bodyRes, competitionsRes, notesRes, repliesRes] = await Promise.all([
         supabase.from('training_logs').select('*').eq('user_id', athleteId).order('date', { ascending: false }).limit(40),
         supabase.from('personal_bests').select('*').eq('user_id', athleteId).order('achieved_date', { ascending: true }),
         supabase.from('mental_journals').select('*').eq('user_id', athleteId).order('date', { ascending: false }).limit(20),
         supabase.from('body_records').select('*').eq('user_id', athleteId).order('date', { ascending: false }).limit(10),
-        supabase.from('strength_records').select('*').eq('user_id', athleteId).order('date', { ascending: false }).limit(20),
         supabase.from('competitions').select('*').eq('user_id', athleteId).order('start_date', { ascending: false }).limit(20),
         supabase.from('coach_notes').select('*').eq('athlete_id', athleteId).order('note_date', { ascending: false }).limit(30),
         supabase.from('coach_note_replies').select('*').eq('athlete_id', athleteId).order('created_at', { ascending: true }).limit(100),
@@ -162,7 +160,6 @@ export default function CoachPage() {
         pbs: pbsRes.data || [],
         mentalLogs: mentalRes.data || [],
         bodyRecords: bodyRes.data || [],
-        strengthRecords: strengthRes.data || [],
         competitions: competitionsRes.data || [],
         competitionResults: resultsRes.data || [],
         notes: notesRes.data || [],
@@ -247,7 +244,6 @@ export default function CoachPage() {
     const latestBody = data.bodyRecords[0]
     const previousBody = data.bodyRecords[1]
     const bodyChange = latestBody && previousBody ? latestBody.weight - previousBody.weight : null
-    const strengthVolume = data.strengthRecords.reduce((sum, row) => sum + ((row.weight || 0) * (row.reps || 0) * (row.sets || 0)), 0)
     const upcoming = data.competitions.filter((competition) => (competition.end_date || competition.start_date) >= today).sort((a, b) => a.start_date.localeCompare(b.start_date))
     const competitionMap = Object.fromEntries(data.competitions.map((competition) => [competition.id, competition]))
     const raceIssues = data.competitionResults
@@ -281,7 +277,6 @@ export default function CoachPage() {
       avgRpe,
       latestBody,
       bodyChange,
-      strengthVolume,
       upcoming,
       raceIssues,
       risks,
@@ -495,10 +490,9 @@ export default function CoachPage() {
           </div>
         </section>
         <section className="bg-[#1a1d27] rounded-xl border border-slate-700/50 p-5">
-          <h2 className="text-white font-semibold mb-3">멘탈 / 근력 / 신체</h2>
+          <h2 className="text-white font-semibold mb-3">멘탈 / 신체</h2>
           <div className="space-y-2">
             <TextBox>멘탈 기록 {data.mentalLogs.length}건, 최근 감정 흐름: {data.mentalLogs[0]?.mood || '미입력'}</TextBox>
-            <TextBox>근력 기록 {data.strengthRecords.length}건, 최근 볼륨 합계: {summary.strengthVolume.toLocaleString()}kg</TextBox>
             <TextBox>신체 기록 {data.bodyRecords.length}건, 최근 체중: {summary.latestBody ? `${summary.latestBody.weight}kg` : '미입력'}</TextBox>
           </div>
         </section>
@@ -576,7 +570,6 @@ export default function CoachPage() {
           <h2 className="text-white font-semibold mb-3">피드백 작성 전 확인 자료</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <TextBox>훈련: 최근 {summary.recentLogs.length}회, {(summary.totalDistance / 1000).toFixed(1)}km, 평균 강도 {summary.avgRpe ? summary.avgRpe.toFixed(1) : '-'}</TextBox>
-            <TextBox>근력: 최근 {data.strengthRecords.length}건, 계산 가능 볼륨 {summary.strengthVolume.toLocaleString()}kg</TextBox>
             <TextBox>멘탈: 최근 {data.mentalLogs.length}건, 최근 감정 {data.mentalLogs[0]?.mood || '미입력'}</TextBox>
             <TextBox>신체: 체중 {summary.latestBody ? `${summary.latestBody.weight}kg` : '미입력'}, 체지방 {summary.latestBody?.body_fat ? `${summary.latestBody.body_fat}%` : '미입력'}</TextBox>
           </div>

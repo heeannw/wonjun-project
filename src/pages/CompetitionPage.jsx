@@ -5,7 +5,8 @@ import { getCompetitionPrePlan, getCompetitionPostPlan, getCompetitionEvaluation
 import { useProfileStore } from '../store/profileStore'
 import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, BrainCircuit, RefreshCw, ClipboardList, BarChart2, Pencil } from 'lucide-react'
 import TimeInput from '../components/TimeInput'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts'
+import MeasuredChart from '../components/MeasuredChart'
 import { timeToSeconds } from '../lib/fina'
 
 const EVENT_OPTIONS = [
@@ -743,7 +744,7 @@ export default function CompetitionPage() {
                     {histData.length >= 2 && (
                       <div className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50">
                         <h2 className="text-sm font-semibold text-slate-300 mb-4">{activeHistEvent} 대회별 기록 추이</h2>
-                        <ResponsiveContainer width="100%" height={200}>
+                        <MeasuredChart height={200}>
                           <LineChart data={histData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
                             <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} />
@@ -774,7 +775,7 @@ export default function CompetitionPage() {
                               }}
                             />
                           </LineChart>
-                        </ResponsiveContainer>
+                        </MeasuredChart>
                       </div>
                     )}
 

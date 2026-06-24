@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { Activity, BrainCircuit, CalendarDays, ClipboardCheck, Save, Target, User } from 'lucide-react'
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts'
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
+import MeasuredChart from '../components/MeasuredChart'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 
 const EVENT_OPTIONS = [
@@ -475,15 +476,15 @@ export default function ProfilePage() {
               종합 {chartAverage.toFixed(0)}점
             </span>
           </div>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
+          <div>
+            <MeasuredChart height={320}>
               <RadarChart data={radarData}>
                 <PolarGrid stroke="#334155" />
                 <PolarAngleAxis dataKey="item" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                 <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} />
                 <Radar dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.28} strokeWidth={2} />
               </RadarChart>
-            </ResponsiveContainer>
+            </MeasuredChart>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-3">
             {radarData.map((item) => (

@@ -2,6 +2,8 @@ create table if not exists public.race_video_analyses (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   competition_id uuid references public.competitions(id) on delete set null,
+  competition_name text,
+  competition_date date,
   result_id uuid references public.competition_results(id) on delete set null,
   title text not null,
   event text not null,
@@ -42,3 +44,9 @@ using (user_id = auth.uid());
 
 create index if not exists race_video_analyses_user_event_idx
   on public.race_video_analyses (user_id, event, created_at desc);
+
+alter table public.race_video_analyses
+  add column if not exists competition_name text;
+
+alter table public.race_video_analyses
+  add column if not exists competition_date date;

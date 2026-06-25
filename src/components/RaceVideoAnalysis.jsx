@@ -104,6 +104,8 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
   const [analysisId, setAnalysisId] = useState(null)
   const [title, setTitle] = useState('영상 레이스 분석')
   const [competitionId, setCompetitionId] = useState('')
+  const [competitionName, setCompetitionName] = useState('')
+  const [competitionDate, setCompetitionDate] = useState(new Date().toISOString().slice(0, 10))
   const [event, setEvent] = useState(defaultEvent)
   const [poolLength, setPoolLength] = useState(50)
   const [raceDistance, setRaceDistance] = useState(parseEventDistance(defaultEvent))
@@ -252,6 +254,8 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
     setAnalysisId(null)
     setTitle('영상 레이스 분석')
     setCompetitionId('')
+    setCompetitionName('')
+    setCompetitionDate(new Date().toISOString().slice(0, 10))
     setEvent(defaultEvent)
     setRaceDistance(parseEventDistance(defaultEvent))
     setPoolLength(50)
@@ -272,6 +276,12 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
     setAnalysisId(analysis.id)
     setTitle(analysis.title)
     setCompetitionId(analysis.competition_id || '')
+    setCompetitionName(
+      analysis.competition_name
+      || competitions.find((competition) => competition.id === analysis.competition_id)?.name
+      || '',
+    )
+    setCompetitionDate(analysis.competition_date || new Date().toISOString().slice(0, 10))
     setEvent(analysis.event)
     setRaceDistance(analysis.race_distance)
     setPoolLength(analysis.pool_length)
@@ -292,6 +302,8 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
     const payload = {
       user_id: user.id,
       competition_id: competitionId || null,
+      competition_name: competitionName.trim() || null,
+      competition_date: competitionDate || null,
       title: title.trim() || '영상 레이스 분석',
       event,
       pool_length: poolLength,
@@ -322,15 +334,43 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
 
   const saveCompetitionResult = async () => {
     const finalSeconds = currentAthlete ? laneCumulativeSeconds(currentAthlete).at(-1) : 0
-    if (!competitionId || !finalSeconds) {
-      setMessage('시합과 원준 선수의 최종 누적 기록을 먼저 입력해주세요.')
+    if (!competitionName.trim() || !finalSeconds) {
+      setMessage('시합명과 원준 선수의 최종 누적 기록을 먼저 입력해주세요.')
       return
+    }
+    let targetCompetitionId = competitionId
+    if (!targetCompetitionId) {
+      const existingCompetition = competitions.find(
+        (competition) => competition.name.trim().toLowerCase() === competitionName.trim().toLowerCase(),
+      )
+      targetCompetitionId = existingCompetition?.id || ''
+    }
+    if (!targetCompetitionId) {
+      const { data: createdCompetition, error: competitionError } = await supabase
+        .from('competitions')
+        .insert({
+          user_id: user.id,
+          name: competitionName.trim(),
+          start_date: competitionDate,
+          end_date: competitionDate,
+          pool_type: `${poolLength}m`,
+          events: [event],
+          notes: '영상 레이스 분석에서 등록',
+        })
+        .select()
+        .single()
+      if (competitionError) {
+        setMessage(`시합 생성 실패: ${competitionError.message}`)
+        return
+      }
+      targetCompetitionId = createdCompetition.id
+      setCompetitionId(targetCompetitionId)
     }
     const finalCheckpoint = checkpointRows.at(-1)
     const athleteEntry = finalCheckpoint?.entries.find((entry) => entry.lane.lane === athleteLane)
     const { data, error } = await supabase.from('competition_results').insert({
       user_id: user.id,
-      competition_id: competitionId,
+      competition_id: targetCompetitionId,
       event,
       record_time: formatClock(finalSeconds),
       rank: athleteEntry?.rank || null,
@@ -341,7 +381,15 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
       return
     }
     if (analysisId) {
-      await supabase.from('race_video_analyses').update({ result_id: data.id }).eq('id', analysisId)
+      await supabase
+        .from('race_video_analyses')
+        .update({
+          result_id: data.id,
+          competition_id: targetCompetitionId,
+          competition_name: competitionName.trim(),
+          competition_date: competitionDate,
+        })
+        .eq('id', analysisId)
     }
     setMessage('원준 선수의 최종 기록을 시합 결과에 저장했습니다.')
     onResultSaved?.()
@@ -399,11 +447,27 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
               <input value={title} onChange={(eventObject) => setTitle(eventObject.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-[#0f1117] px-3 py-2 text-sm text-white" />
             </label>
             <label className="text-xs text-slate-400">
-              시합
-              <select value={competitionId} onChange={(eventObject) => setCompetitionId(eventObject.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-[#0f1117] px-3 py-2 text-sm text-white">
-                <option value="">시합 선택</option>
-                {competitions.map((competition) => <option key={competition.id} value={competition.id}>{competition.name}</option>)}
-              </select>
+              시합명
+              <input
+                list="race-analysis-competitions"
+                value={competitionName}
+                onChange={(eventObject) => {
+                  const value = eventObject.target.value
+                  const matched = competitions.find((competition) => competition.name === value)
+                  setCompetitionName(value)
+                  setCompetitionId(matched?.id || '')
+                  if (matched?.start_date) setCompetitionDate(matched.start_date)
+                }}
+                placeholder="기존 시합 선택 또는 직접 입력"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-[#0f1117] px-3 py-2 text-sm text-white"
+              />
+              <datalist id="race-analysis-competitions">
+                {competitions.map((competition) => <option key={competition.id} value={competition.name} />)}
+              </datalist>
+            </label>
+            <label className="text-xs text-slate-400">
+              시합 날짜
+              <input type="date" value={competitionDate} onChange={(eventObject) => setCompetitionDate(eventObject.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-[#0f1117] px-3 py-2 text-sm text-white" />
             </label>
             <label className="text-xs text-slate-400">
               종목

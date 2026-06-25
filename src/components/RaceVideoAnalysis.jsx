@@ -785,13 +785,21 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
 
         <div className="mt-5 space-y-2">
           {(() => {
+            const isFinished = raceDuration > 0 && elapsed >= raceDuration
+            const finalTimes = replayLanes.map((lane) => ({
+              lane,
+              finalSec: laneCumulativeSeconds(lane).at(-1) || Infinity,
+            })).sort((a, b) => a.finalSec - b.finalSec)
+            const finalRankOf = (lane) => finalTimes.findIndex((f) => f.lane.lane === lane.lane) + 1
+
             const sorted = [...positions].sort((a, b) => b.position - a.position)
             return sorted.map(({ lane, position }, rankIndex) => {
-            const rank = rankIndex + 1
+            const rank = isFinished ? finalRankOf(lane) : rankIndex + 1
             const gapMeters = Math.max(0, leaderPosition - position)
             const gapSeconds = leaderSpeed > 0 ? gapMeters / leaderSpeed : 0
             const isMe = lane.lane === athleteLane
             const isVirtual = lane.virtual
+            const finalSec = laneCumulativeSeconds(lane).at(-1)
 
             // 50m 풀에서 왕복 위치 계산: 0→50 전진, 50→100 후진, 반복
             const lap = Math.floor(position / 50)
@@ -810,9 +818,15 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
                       {isMe && <span className="ml-1 rounded bg-cyan-500/20 px-1 py-0.5 text-[10px] text-cyan-400">나</span>}
                     </span>
                   </span>
-                  <span className={gapMeters < 0.05 ? 'font-semibold text-yellow-300' : gapSeconds < 0.5 ? 'text-orange-300' : 'text-red-400'}>
-                    {gapMeters < 0.05 ? '선두' : `+${gapSeconds.toFixed(2)}초 · ${gapMeters.toFixed(1)}m`}
-                  </span>
+                  {isFinished && finalSec ? (
+                    <span className={`font-mono font-semibold ${rank === 1 ? 'text-yellow-300' : rank === 2 ? 'text-slate-300' : rank === 3 ? 'text-orange-400' : 'text-slate-400'}`}>
+                      {formatClock(finalSec)}
+                    </span>
+                  ) : (
+                    <span className={gapMeters < 0.05 ? 'font-semibold text-yellow-300' : gapSeconds < 0.5 ? 'text-orange-300' : 'text-red-400'}>
+                      {gapMeters < 0.05 ? '선두' : `+${gapSeconds.toFixed(2)}초 · ${gapMeters.toFixed(1)}m`}
+                    </span>
+                  )}
                 </div>
                 <div className="relative h-8 overflow-hidden rounded bg-slate-900">
                   {/* 턴벽 */}

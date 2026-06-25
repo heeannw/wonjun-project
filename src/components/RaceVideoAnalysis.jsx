@@ -382,7 +382,16 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
     setAutoAnalyzing(false)
 
     if (error || data?.error) {
-      setMessage(data?.error || error?.message || '영상 자동 분석에 실패했습니다.')
+      let functionMessage = data?.error || ''
+      if (!functionMessage && error?.context instanceof Response) {
+        try {
+          const errorBody = await error.context.clone().json()
+          functionMessage = errorBody?.error || ''
+        } catch {
+          functionMessage = ''
+        }
+      }
+      setMessage(functionMessage || error?.message || '영상 자동 분석에 실패했습니다.')
       return
     }
 

@@ -19,6 +19,20 @@ function isPublicYouTubeUrl(value: string) {
   }
 }
 
+function normalizeYouTubeUrl(value: string) {
+  const url = new URL(value)
+  if (url.hostname === 'youtu.be') {
+    const videoId = url.pathname.split('/').filter(Boolean)[0]
+    return videoId ? `https://www.youtube.com/watch?v=${videoId}` : value
+  }
+  const pathParts = url.pathname.split('/').filter(Boolean)
+  if (pathParts[0] === 'live' || pathParts[0] === 'shorts' || pathParts[0] === 'embed') {
+    const videoId = pathParts[1]
+    return videoId ? `https://www.youtube.com/watch?v=${videoId}` : value
+  }
+  return value
+}
+
 function formatVideoTime(totalSeconds: number) {
   const total = Math.max(0, Math.floor(Number(totalSeconds) || 0))
   const minutes = Math.floor(total / 60)
@@ -74,7 +88,7 @@ Deno.serve(async (request) => {
 
   try {
     const body = await request.json()
-    const videoUrl = String(body.videoUrl || '').trim()
+    const rawVideoUrl = String(body.videoUrl || '').trim()
     const event = String(body.event || '').trim()
     const raceDistance = Number(body.raceDistance)
     const startSeconds = Number(body.startSeconds) || 0
@@ -83,9 +97,10 @@ Deno.serve(async (request) => {
       ? body.checkpointDistances.map(Number).filter((value: number) => value > 0)
       : []
 
-    if (!isPublicYouTubeUrl(videoUrl)) {
+    if (!isPublicYouTubeUrl(rawVideoUrl)) {
       return jsonResponse({ error: '공개 YouTube 영상 링크를 입력해주세요.' }, 400)
     }
+    const videoUrl = normalizeYouTubeUrl(rawVideoUrl)
     if (!event || !raceDistance || !checkpointDistances.length) {
       return jsonResponse({ error: '종목과 레이스 거리 정보가 필요합니다.' }, 400)
     }
@@ -145,7 +160,19 @@ Deno.serve(async (request) => {
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
         lastError = payload?.error?.message || `Gemini 영상 분석 오류 (${response.status})`
-        if ([429, 500, 502, 503, 504].includes(response.status)) continue
+        const canTryFallback = model !== models.at(-1)
+          && (response.status === 400 || [429, 500, 502, 503, 504].includes(response.status))
+        if (canTryFallback) continue
+
+        if (
+          response.status === 400
+          && (/invalid argument/i.test(lastError) || /fewer than \d+ images/i.test(lastError))
+        ) {
+          return jsonResponse({
+            error: '영상 전체 길이가 Gemini의 YouTube 분석 한도를 넘었거나 영상 형식을 처리할 수 없습니다. 현재처럼 3시간이 넘는 중계 영상은 경기 구간만 잘라 업로드해야 정확하게 분석할 수 있습니다.',
+            details: lastError,
+          }, 400)
+        }
         return jsonResponse({ error: lastError }, response.status)
       }
 

@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import { Plus, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 import MeasuredChart from '../components/MeasuredChart'
+import { formatPaceSeconds } from '../lib/pace'
 
 const METRIC_CONFIG = {
   condition_score: { label: '컨디션', color: '#22c55e' },
@@ -36,10 +37,12 @@ const TRAINING_EVENTS = [
   '웨이트',
   '회복',
   '회복훈련',
+  '스킬운동',
+  '자세잡기',
   '기타',
 ]
 
-const SET_TYPES = ['자유형', '배영', '평영', '접영', '개인혼영', '킥', '드릴', '풀', '웜업', '쿨다운', '기타']
+const SET_TYPES = ['자유형', '배영', '평영', '접영', '개인혼영', '다이빙', '킥', '드릴', '풀', '웜업', '쿨다운', '기타']
 const INTENSITIES = ['최저', '저', '중', '고', '최고']
 const EQUIPMENT_OPTIONS = ['킥판', '풀부이', '패들', '스노클', '숏핀', '롱핀', '밴드']
 const emptySet = {
@@ -57,8 +60,11 @@ const emptySet = {
 
 const defaultForm = {
   date: new Date().toISOString().slice(0, 10),
+  session_period: '오후',
   total_distance_m: '',
   main_event: '자유형 1500m',
+  pace_minutes: '',
+  pace_remainder_seconds: '',
   rpe: 7,
   sleep_hours: '',
   condition_score: 7,
@@ -358,8 +364,11 @@ export default function TrainingPage() {
   const handleEdit = (log) => {
     setForm({
       date: log.date || defaultForm.date,
+      session_period: log.session_period || defaultForm.session_period,
       total_distance_m: log.total_distance_m ?? '',
       main_event: log.main_event || defaultForm.main_event,
+      pace_minutes: log.pace_seconds ? Math.floor(Number(log.pace_seconds) / 60) : '',
+      pace_remainder_seconds: log.pace_seconds ? Number(log.pace_seconds) % 60 : '',
       rpe: log.rpe ?? 7,
       sleep_hours: log.sleep_hours ?? '',
       condition_score: log.condition_score ?? 7,
@@ -385,10 +394,14 @@ export default function TrainingPage() {
     const setSummary = formatSets(form.sets)
     const baseNotes = form.notes?.trim() || ''
     const validSets = getValidSets(form.sets)
+    const paceMinutes = parseInt(form.pace_minutes) || 0
+    const paceRemainderSeconds = parseFloat(form.pace_remainder_seconds) || 0
+    const paceSeconds = paceMinutes || paceRemainderSeconds ? paceMinutes * 60 + paceRemainderSeconds : null
     const payload = {
       ...form,
       user_id: user.id,
       total_distance_m: parseInt(form.total_distance_m) || 0,
+      pace_seconds: paceSeconds,
       rpe: parseInt(form.rpe),
       sleep_hours: parseFloat(form.sleep_hours) || null,
       condition_score: parseInt(form.condition_score),
@@ -396,6 +409,8 @@ export default function TrainingPage() {
       sets: validSets,
       notes: baseNotes || null,
     }
+    delete payload.pace_minutes
+    delete payload.pace_remainder_seconds
 
     const query = editingId
       ? supabase.from('training_logs').update(payload).eq('id', editingId)
@@ -406,7 +421,16 @@ export default function TrainingPage() {
     if (error) {
       const fallbackPayload = { ...payload }
       delete fallbackPayload.sets
-      fallbackPayload.notes = [baseNotes, setSummary ? `세트 구성:\n${setSummary}` : ''].filter(Boolean).join('\n\n') || null
+      delete fallbackPayload.session_period
+      delete fallbackPayload.pace_seconds
+      const sessionSummary = `훈련 시간대: ${form.session_period}`
+      const paceSummary = paceSeconds ? `평균 100m 페이스: ${formatPaceSeconds(paceSeconds)}` : ''
+      fallbackPayload.notes = [
+        baseNotes,
+        sessionSummary,
+        paceSummary,
+        setSummary ? `세트 구성:\n${setSummary}` : '',
+      ].filter(Boolean).join('\n\n') || null
       const fallbackQuery = editingId
         ? supabase.from('training_logs').update(fallbackPayload).eq('id', editingId)
         : supabase.from('training_logs').insert(fallbackPayload)
@@ -468,6 +492,18 @@ export default function TrainingPage() {
               />
             </div>
             <div>
+              <label className="block text-sm text-slate-400 mb-1">훈련 시간대</label>
+              <select
+                name="session_period"
+                value={form.session_period}
+                onChange={handleChange}
+                className="w-full bg-[#0f1117] border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              >
+                <option>오전</option>
+                <option>오후</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-sm text-slate-400 mb-1">총 거리 (m)</label>
               <input
                 type="number"
@@ -492,6 +528,37 @@ export default function TrainingPage() {
                   <option key={e}>{e}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">평균 100m 페이스</label>
+              <div className="pace-input-grid grid grid-cols-2 gap-2">
+                <div className="relative">
+                  <input
+                    type="number"
+                    name="pace_minutes"
+                    value={form.pace_minutes}
+                    onChange={handleChange}
+                    min="0"
+                    placeholder="1"
+                    className="w-full bg-[#0f1117] border border-slate-700 rounded-lg py-2 pl-3 pr-8 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">분</span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    name="pace_remainder_seconds"
+                    value={form.pace_remainder_seconds}
+                    onChange={handleChange}
+                    min="0"
+                    max="59.99"
+                    step="0.01"
+                    placeholder="10"
+                    className="w-full bg-[#0f1117] border border-slate-700 rounded-lg py-2 pl-3 pr-8 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">초</span>
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-sm text-slate-400 mb-1">수면 시간 (h)</label>
@@ -623,6 +690,7 @@ export default function TrainingPage() {
               >
                 <div className="training-log-identity flex items-center gap-4">
                   <span className="text-white font-medium text-sm">{log.date}</span>
+                  <span className="text-xs text-slate-500">{log.session_period || '-'}</span>
                   <span className="text-slate-400 text-sm">{log.main_event}</span>
                 </div>
                 <div className="training-log-metrics flex items-center gap-5 text-sm">
@@ -639,6 +707,8 @@ export default function TrainingPage() {
                     <div><span className="text-slate-500">수면</span> <span className="text-white ml-2">{log.sleep_hours ?? '-'}h</span></div>
                     <div><span className="text-slate-500">세트 수</span> <span className="text-white ml-2">{log.sets?.length || 0}개</span></div>
                     <div><span className="text-slate-500">신체 피로</span> <span className="text-red-400 ml-2">{log.forearm_fatigue}/10</span></div>
+                    <div><span className="text-slate-500">시간대</span> <span className="text-white ml-2">{log.session_period || '-'}</span></div>
+                    <div><span className="text-slate-500">100m 페이스</span> <span className="text-blue-400 ml-2">{formatPaceSeconds(log.pace_seconds)}</span></div>
                   </div>
                   {log.notes && (
                     <p className="text-slate-400 text-sm mt-3 bg-slate-700/20 rounded-lg px-3 py-2">{log.notes}</p>

@@ -7,6 +7,7 @@ import { Plus, CalendarDays, MapPin, Waves, ChevronDown, ChevronUp, Trash2, Brai
 import TimeInput from '../components/TimeInput'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts'
 import MeasuredChart from '../components/MeasuredChart'
+import RaceVideoAnalysis from '../components/RaceVideoAnalysis'
 import { timeToSeconds } from '../lib/fina'
 
 const EVENT_OPTIONS = [
@@ -429,7 +430,7 @@ export default function CompetitionPage() {
       </div>
 
       {/* 페이지 탭 */}
-      <div className="flex gap-1 mb-6 bg-[#1a1d27] p-1 rounded-lg border border-slate-700/50 w-fit">
+      <div className="mobile-nav-scroll mb-6 flex w-full gap-1 overflow-x-auto rounded-lg border border-slate-700/50 bg-[#1a1d27] p-1 md:w-fit">
         <button
           onClick={() => setPageTab('schedule')}
           className={`text-sm px-4 py-2 rounded-md transition font-medium ${pageTab === 'schedule' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
@@ -450,11 +451,26 @@ export default function CompetitionPage() {
         </button>
         <button
           onClick={() => setPageTab('history')}
-          className={`text-sm px-4 py-2 rounded-md transition font-medium ${pageTab === 'history' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'}`}
+          className={`shrink-0 text-sm px-4 py-2 rounded-md transition font-medium ${pageTab === 'history' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'}`}
         >
           대회 히스토리
         </button>
+        <button
+          onClick={() => setPageTab('video')}
+          className={`shrink-0 text-sm px-4 py-2 rounded-md transition font-medium ${pageTab === 'video' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+        >
+          영상 레이스 분석
+        </button>
       </div>
+
+      {pageTab === 'video' && (
+        <RaceVideoAnalysis
+          user={user}
+          competitions={competitions}
+          eventOptions={EVENT_OPTIONS}
+          onResultSaved={fetchAll}
+        />
+      )}
 
       {/* 훈련 플랜 탭 */}
       {pageTab === 'plan' && (
@@ -814,7 +830,7 @@ export default function CompetitionPage() {
       })()}
 
       {pageTab === 'plan' && <div className="hidden" />}
-      {pageTab !== 'plan' && pageTab !== 'peak' && pageTab !== 'history' && <div>
+      {pageTab === 'schedule' && <div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#1a1d27] rounded-xl p-5 border border-slate-700/50 mb-6 space-y-4">

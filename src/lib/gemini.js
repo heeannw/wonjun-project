@@ -1,5 +1,6 @@
 ﻿const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 const GEMINI_MODELS = ['gemini-2.5-flash-lite', 'gemini-2.5-flash']
+import { formatPaceSeconds } from './pace'
 
 function getApiUrl(model) {
   return `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`
@@ -118,7 +119,7 @@ async function callGemini(prompt, maxTokens = 800) {
 export async function getTrendAnalysis(logs, pbs, profile) {
   const c = ctx(profile)
   const logSummary = logs.slice(0, 14).map((l) =>
-    `${l.date}: ${l.total_distance_m}m, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}/10`
+    `${l.date} ${l.session_period || ''}: ${l.total_distance_m}m, 100m 페이스 ${l.pace_seconds ? formatPaceSeconds(l.pace_seconds) : '미입력'}, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}/10`
   ).join('\n')
   const pbSummary = pbs.slice(0, 6).map((p) => `${p.event}: ${p.record_time} (${p.achieved_date})`).join('\n')
 
@@ -196,7 +197,7 @@ export async function getTrainingFeedback(todayLog, recentLogs, profile, context
       }).join('\n')
     : ''
   const recentSummary = recentLogs.slice(0, 7).map((l) =>
-    `${l.date}: ${l.total_distance_m}m, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}`
+    `${l.date} ${l.session_period || ''}: ${l.total_distance_m}m, 100m 페이스 ${l.pace_seconds ? formatPaceSeconds(l.pace_seconds) : '미입력'}, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}`
   ).join('\n')
 
   const prompt = `
@@ -298,7 +299,7 @@ export async function getMonthlyReportAnalysis(reportData, profile) {
   } = reportData
 
   const trainingSummary = logs.map((l) =>
-    `${l.date}: ${l.main_event || '-'}, ${l.total_distance_m || 0}m, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}/10${l.notes ? `, 메모: ${l.notes}` : ''}`
+    `${l.date} ${l.session_period || ''}: ${l.main_event || '-'}, ${l.total_distance_m || 0}m, 100m 페이스 ${l.pace_seconds ? formatPaceSeconds(l.pace_seconds) : '미입력'}, 운동강도 ${l.rpe}/10, 컨디션 ${l.condition_score}/10, 수면 ${l.sleep_hours}h, 신체피로 ${l.forearm_fatigue}/10${l.notes ? `, 메모: ${l.notes}` : ''}`
   ).join('\n')
   const pbSummary = monthPbs.map((p) => `${p.achieved_date}: ${p.event} ${p.record_time}`).join('\n')
   const latestPbSummary = latestPbs.map((p) => `${p.event}: ${p.record_time} (${p.achieved_date})`).join('\n')

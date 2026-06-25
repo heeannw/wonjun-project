@@ -5,6 +5,7 @@ import { calcFinaPoints, timeToSeconds } from '../lib/fina'
 import { getMonthlyReportAnalysis } from '../lib/gemini'
 import { useProfileStore } from '../store/profileStore'
 import { Printer, BrainCircuit, RefreshCw, ChevronLeft, ChevronRight, Trophy } from 'lucide-react'
+import { formatPaceSeconds } from '../lib/pace'
 
 function getMonthRange(year, month) {
   const start = `${year}-${String(month).padStart(2, '0')}-01`
@@ -308,12 +309,16 @@ export default function ReportPage() {
                     <div key={log.id} className="rounded-lg border border-slate-700/50 bg-[#0f1117] p-3">
                       <div className="mb-2 flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-white">{log.date}</p>
+                          <p className="text-sm font-semibold text-white">{log.date} {log.session_period || ''}</p>
                           <p className="text-xs text-slate-500">{log.main_event || '-'}</p>
                         </div>
                         <p className="text-sm font-semibold text-blue-400">{(log.total_distance_m || 0).toLocaleString()}m</p>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+                        <div>
+                          <p className="text-[10px] text-slate-600">100m 페이스</p>
+                          <p className="text-xs text-blue-400">{formatPaceSeconds(log.pace_seconds)}</p>
+                        </div>
                         <div>
                           <p className="text-[10px] text-slate-600">운동 강도</p>
                           <p className="text-xs text-slate-300">{log.rpe ?? '-'}</p>

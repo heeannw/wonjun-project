@@ -315,6 +315,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  form .pace-input-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
   main h1 {
     font-size: 1.35rem !important;
     line-height: 1.75rem !important;

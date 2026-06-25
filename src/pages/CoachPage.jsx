@@ -4,6 +4,7 @@ import { BarChart3, CalendarDays, Check, ClipboardCheck, Edit3, MessageSquare, S
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { calcFinaPoints, timeToSeconds } from '../lib/fina'
+import { formatPaceSeconds } from '../lib/pace'
 
 const feedbackCategories = ['수영 피드백', '근력 피드백', '멘탈 피드백', '신체 피드백', '다음 훈련 지시']
 
@@ -483,8 +484,8 @@ export default function CoachPage() {
           <div className="space-y-2">
             {summary.recentLogs.map((log) => (
               <div key={log.id} className="bg-[#0f1117] border border-slate-800 rounded-lg px-3 py-2">
-                <p className="text-sm text-white font-semibold">{log.date} · {log.main_event || '훈련'}</p>
-                <p className="text-xs text-slate-500 mt-1">{(log.total_distance_m || 0).toLocaleString()}m · 강도 {log.rpe ?? '-'} · 컨디션 {log.condition_score ?? '-'} · 피로 {log.forearm_fatigue ?? '-'}</p>
+                <p className="text-sm text-white font-semibold">{log.date} {log.session_period || ''} · {log.main_event || '훈련'}</p>
+                <p className="text-xs text-slate-500 mt-1">{(log.total_distance_m || 0).toLocaleString()}m · 100m 페이스 {formatPaceSeconds(log.pace_seconds)} · 강도 {log.rpe ?? '-'} · 컨디션 {log.condition_score ?? '-'} · 피로 {log.forearm_fatigue ?? '-'}</p>
               </div>
             ))}
           </div>

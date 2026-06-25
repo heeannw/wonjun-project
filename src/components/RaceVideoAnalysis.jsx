@@ -792,9 +792,15 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
             })).sort((a, b) => a.finalSec - b.finalSec)
             const finalRankOf = (lane) => finalTimes.findIndex((f) => f.lane.lane === lane.lane) + 1
 
-            const sorted = [...positions].sort((a, b) => b.position - a.position)
+            const sorted = isFinished
+              ? [...positions].sort((a, b) => {
+                  const aTime = laneCumulativeSeconds(a.lane).at(-1) || Infinity
+                  const bTime = laneCumulativeSeconds(b.lane).at(-1) || Infinity
+                  return aTime - bTime
+                })
+              : [...positions].sort((a, b) => b.position - a.position)
             return sorted.map(({ lane, position }, rankIndex) => {
-            const rank = isFinished ? finalRankOf(lane) : rankIndex + 1
+            const rank = rankIndex + 1
             const gapMeters = Math.max(0, leaderPosition - position)
             const gapSeconds = leaderSpeed > 0 ? gapMeters / leaderSpeed : 0
             const isMe = lane.lane === athleteLane

@@ -787,22 +787,33 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
           {positions.map(({ lane, position }) => {
             const gapMeters = Math.max(0, leaderPosition - position)
             const gapSeconds = leaderSpeed > 0 ? gapMeters / leaderSpeed : 0
+            const isMe = lane.lane === athleteLane
+            const isVirtual = lane.virtual
+            // 50m 풀에서 왕복 위치 계산: 0→50 전진, 50→100 후진, 반복
+            const lap = Math.floor(position / 50)
+            const withinLap = position % 50
+            const poolPct = lap % 2 === 0 ? (withinLap / 50) * 100 : ((50 - withinLap) / 50) * 100
+            const facingRight = lap % 2 === 0
             return (
-              <div key={lane.lane} className={`rounded-lg border px-3 py-2 ${lane.virtual ? 'border-yellow-500/30 bg-yellow-500/5' : lane.lane === athleteLane ? 'border-blue-500/40 bg-blue-500/5' : 'border-slate-800 bg-[#0f1117]'}`}>
+              <div key={lane.lane} className={`rounded-lg border px-3 py-2 ${isVirtual ? 'border-yellow-500/30 bg-yellow-500/5' : isMe ? 'border-cyan-400/60 bg-cyan-500/10' : 'border-slate-800 bg-[#0f1117]'}`}>
                 <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                  <span className={lane.virtual ? 'text-yellow-300' : lane.lane === athleteLane ? 'text-blue-300' : 'text-slate-300'}>
-                    {lane.virtual ? 'PB' : `${lane.lane}레인`} · {lane.name || (lane.lane === athleteLane ? '원준' : '선수')}
+                  <span className={`font-medium ${isVirtual ? 'text-yellow-300' : isMe ? 'text-cyan-300' : 'text-slate-400'}`}>
+                    {isVirtual ? 'PB' : `${lane.lane}레인`} · {lane.name || (isMe ? '원준' : '선수')}
+                    {isMe && <span className="ml-1 rounded bg-cyan-500/20 px-1 py-0.5 text-[10px] text-cyan-400">나</span>}
                   </span>
                   <span className="text-slate-500">
                     {gapMeters < 0.05 ? '선두' : `+${gapSeconds.toFixed(2)}초 · ${gapMeters.toFixed(1)}m`}
                   </span>
                 </div>
                 <div className="relative h-8 overflow-hidden rounded bg-slate-900">
-                  {checkpointDistances.slice(0, -1).map((distance) => (
-                    <span key={distance} className="absolute inset-y-0 w-px bg-slate-700" style={{ left: `${(distance / raceDistance) * 100}%` }} />
-                  ))}
-                  <div className={`absolute top-1/2 h-5 w-9 -translate-y-1/2 rounded-full text-center text-sm transition-[left] duration-75 ${lane.virtual ? 'bg-yellow-500/25' : lane.lane === athleteLane ? 'bg-blue-500/30' : 'bg-slate-700'}`} style={{ left: `calc(${Math.min(100, (position / raceDistance) * 100)}% - 18px)` }}>
-                    🏊
+                  {/* 턴벽 */}
+                  <span className="absolute inset-y-0 left-0 w-1 bg-slate-600" />
+                  <span className="absolute inset-y-0 right-0 w-1 bg-slate-600" />
+                  <div
+                    className={`absolute top-1/2 h-5 w-9 -translate-y-1/2 rounded-full text-center text-sm transition-[left] duration-75 ${isVirtual ? 'bg-yellow-400/40 ring-1 ring-yellow-400/60' : isMe ? 'bg-cyan-400/50 ring-2 ring-cyan-400' : 'bg-slate-700'}`}
+                    style={{ left: `calc(${Math.min(100, poolPct)}% - 18px)` }}
+                  >
+                    <span style={{ display: 'inline-block', transform: facingRight ? 'scaleX(1)' : 'scaleX(-1)' }}>🏊</span>
                   </div>
                 </div>
               </div>

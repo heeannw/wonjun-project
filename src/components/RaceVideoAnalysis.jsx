@@ -784,11 +784,16 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
         </div>
 
         <div className="mt-5 space-y-2">
-          {positions.map(({ lane, position }) => {
+          {(() => {
+            const sorted = [...positions].sort((a, b) => b.position - a.position)
+            const rankOf = (lane) => sorted.findIndex((p) => p.lane.lane === lane.lane) + 1
+            const RANK_STYLE = ['', 'text-yellow-300', 'text-slate-300', 'text-orange-400']
+            return positions.map(({ lane, position }) => {
             const gapMeters = Math.max(0, leaderPosition - position)
             const gapSeconds = leaderSpeed > 0 ? gapMeters / leaderSpeed : 0
             const isMe = lane.lane === athleteLane
             const isVirtual = lane.virtual
+            const rank = rankOf(lane)
             // 50m 풀에서 왕복 위치 계산: 0→50 전진, 50→100 후진, 반복
             const lap = Math.floor(position / 50)
             const withinLap = position % 50
@@ -797,11 +802,16 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
             return (
               <div key={lane.lane} className={`rounded-lg border px-3 py-2 ${isVirtual ? 'border-yellow-500/30 bg-yellow-500/5' : isMe ? 'border-cyan-400/60 bg-cyan-500/10' : 'border-slate-800 bg-[#0f1117]'}`}>
                 <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                  <span className={`font-medium ${isVirtual ? 'text-yellow-300' : isMe ? 'text-cyan-300' : 'text-slate-400'}`}>
-                    {isVirtual ? 'PB' : `${lane.lane}레인`} · {lane.name || (isMe ? '원준' : '선수')}
-                    {isMe && <span className="ml-1 rounded bg-cyan-500/20 px-1 py-0.5 text-[10px] text-cyan-400">나</span>}
+                  <span className="flex items-center gap-1.5">
+                    <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold ${rank === 1 ? 'bg-yellow-400/20 text-yellow-300' : rank === 2 ? 'bg-slate-400/20 text-slate-300' : rank === 3 ? 'bg-orange-400/20 text-orange-400' : 'bg-slate-700/50 text-slate-500'}`}>
+                      {rank}
+                    </span>
+                    <span className={`font-medium ${isVirtual ? 'text-yellow-300' : isMe ? 'text-cyan-300' : 'text-slate-400'}`}>
+                      {isVirtual ? 'PB' : `${lane.lane}레인`} · {lane.name || (isMe ? '원준' : '선수')}
+                      {isMe && <span className="ml-1 rounded bg-cyan-500/20 px-1 py-0.5 text-[10px] text-cyan-400">나</span>}
+                    </span>
                   </span>
-                  <span className="text-slate-500">
+                  <span className={gapMeters < 0.05 ? 'font-semibold text-yellow-300' : gapSeconds < 0.5 ? 'text-orange-300' : 'text-red-400'}>
                     {gapMeters < 0.05 ? '선두' : `+${gapSeconds.toFixed(2)}초 · ${gapMeters.toFixed(1)}m`}
                   </span>
                 </div>
@@ -819,6 +829,7 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
               </div>
             )
           })}
+          })()}
           {!positions.length && <p className="py-8 text-center text-sm text-slate-500">선수를 선택하고 누적 기록을 입력해주세요.</p>}
         </div>
       </section>

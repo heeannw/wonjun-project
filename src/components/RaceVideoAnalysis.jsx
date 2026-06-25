@@ -786,14 +786,13 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
         <div className="mt-5 space-y-2">
           {(() => {
             const sorted = [...positions].sort((a, b) => b.position - a.position)
-            const rankOf = (lane) => sorted.findIndex((p) => p.lane.lane === lane.lane) + 1
-            const RANK_STYLE = ['', 'text-yellow-300', 'text-slate-300', 'text-orange-400']
-            return positions.map(({ lane, position }) => {
+            return sorted.map(({ lane, position }, rankIndex) => {
+            const rank = rankIndex + 1
             const gapMeters = Math.max(0, leaderPosition - position)
             const gapSeconds = leaderSpeed > 0 ? gapMeters / leaderSpeed : 0
             const isMe = lane.lane === athleteLane
             const isVirtual = lane.virtual
-            const rank = rankOf(lane)
+
             // 50m 풀에서 왕복 위치 계산: 0→50 전진, 50→100 후진, 반복
             const lap = Math.floor(position / 50)
             const withinLap = position % 50

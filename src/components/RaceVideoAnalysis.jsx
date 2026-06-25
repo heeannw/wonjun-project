@@ -810,7 +810,7 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
                   <span className="absolute inset-y-0 left-0 w-1 bg-slate-600" />
                   <span className="absolute inset-y-0 right-0 w-1 bg-slate-600" />
                   <div
-                    className={`absolute top-1/2 h-5 w-9 -translate-y-1/2 rounded-full text-center text-sm transition-[left] duration-75 ${isVirtual ? 'bg-yellow-400/40 ring-1 ring-yellow-400/60' : isMe ? 'bg-cyan-400/50 ring-2 ring-cyan-400' : 'bg-slate-700'}`}
+                    className={`absolute top-1/2 h-5 w-9 -translate-y-1/2 rounded-full text-center text-sm ${isVirtual ? 'bg-yellow-400/40 ring-1 ring-yellow-400/60' : isMe ? 'bg-cyan-400/50 ring-2 ring-cyan-400' : 'bg-slate-700'}`}
                     style={{ left: `calc(${Math.min(100, poolPct)}% - 18px)` }}
                   >
                     <span style={{ display: 'inline-block', transform: facingRight ? 'scaleX(1)' : 'scaleX(-1)' }}>🏊</span>

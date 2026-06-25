@@ -3,6 +3,7 @@ import { Check, ChevronDown, ChevronUp, Pause, Play, RotateCcw, Save, Trash2, Tr
 import { CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 import TimeInput from './TimeInput'
 import MeasuredChart from './MeasuredChart'
+import VideoTimestampInput from './VideoTimestampInput'
 import { supabase } from '../lib/supabase'
 import { timeToSeconds } from '../lib/fina'
 
@@ -488,11 +489,21 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
             </label>
             <label className="text-xs text-slate-400">
               경기 시작 위치
-              <input value={videoStart} onChange={(eventObject) => setVideoStart(eventObject.target.value)} placeholder="1:50:53" className="mt-1 w-full rounded-lg border border-slate-700 bg-[#0f1117] px-3 py-2 text-sm text-white" />
+              <VideoTimestampInput
+                value={videoStart}
+                onChange={setVideoStart}
+                placeholder="1:50:53"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-[#0f1117] px-3 py-2 text-sm text-white"
+              />
             </label>
             <label className="text-xs text-slate-400">
               경기 종료 위치
-              <input value={videoEnd} onChange={(eventObject) => setVideoEnd(eventObject.target.value)} placeholder="1:54:20" className="mt-1 w-full rounded-lg border border-slate-700 bg-[#0f1117] px-3 py-2 text-sm text-white" />
+              <VideoTimestampInput
+                value={videoEnd}
+                onChange={setVideoEnd}
+                placeholder="1:54:20"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-[#0f1117] px-3 py-2 text-sm text-white"
+              />
             </label>
           </div>
 

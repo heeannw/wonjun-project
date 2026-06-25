@@ -828,7 +828,7 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
                 </div>
               </div>
             )
-          })}
+          })
           })()}
           {!positions.length && <p className="py-8 text-center text-sm text-slate-500">선수를 선택하고 누적 기록을 입력해주세요.</p>}
         </div>

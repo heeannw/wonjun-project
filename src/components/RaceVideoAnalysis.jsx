@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ChevronUp, Pause, Play, RotateCcw, Save, Trash2, Trophy, Video } from 'lucide-react'
+import { BrainCircuit, Check, ChevronDown, ChevronUp, Pause, Play, RefreshCw, RotateCcw, Save, Trash2, Trophy, Video } from 'lucide-react'
 import { CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 import TimeInput from './TimeInput'
 import MeasuredChart from './MeasuredChart'
@@ -118,6 +118,7 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
   const [comparisonId, setComparisonId] = useState('')
   const [isPbReference, setIsPbReference] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [autoAnalyzing, setAutoAnalyzing] = useState(false)
   const [message, setMessage] = useState('')
   const [showInput, setShowInput] = useState(true)
   const [elapsed, setElapsed] = useState(0)
@@ -125,6 +126,7 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
   const [speed, setSpeed] = useState(1)
   const animationRef = useRef(null)
   const lastFrameRef = useRef(null)
+  const resultsRef = useRef(null)
 
   const checkpointDistance = Math.min(50, raceDistance)
   const checkpointCount = Math.max(1, Math.ceil(raceDistance / checkpointDistance))
@@ -331,6 +333,86 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
     setAnalysisId(data.id)
     setMessage('영상 레이스 분석을 저장했습니다.')
     await fetchAnalyses()
+  }
+
+  const analyzeRecords = () => {
+    const selectedLanes = lanes.filter((lane) => lane.enabled)
+    if (!selectedLanes.length) {
+      setMessage('분석할 선수를 한 명 이상 선택해주세요.')
+      return
+    }
+    const missingRecord = selectedLanes
+      .map((lane) => ({
+        lane,
+        splitIndex: lane.splits.findIndex((split) => !split),
+      }))
+      .find((item) => item.splitIndex >= 0)
+    if (missingRecord) {
+      setMessage(`${missingRecord.lane.lane}레인의 ${checkpointDistances[missingRecord.splitIndex]}m 누적 기록을 입력해주세요.`)
+      return
+    }
+    setMessage('')
+    setShowInput(false)
+    window.setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+  }
+
+  const autoAnalyzeVideo = async () => {
+    if (!videoUrl.trim()) {
+      setMessage('공개 YouTube 영상 링크를 입력해주세요.')
+      return
+    }
+    if (!videoEnd || parseClock(videoEnd) <= parseClock(videoStart)) {
+      setMessage('경기 시작 위치보다 늦은 종료 위치를 입력해주세요.')
+      return
+    }
+
+    setAutoAnalyzing(true)
+    setMessage('영상 자막을 분석하고 있습니다. 긴 영상은 1~3분 정도 걸릴 수 있습니다.')
+    const { data, error } = await supabase.functions.invoke('analyze-race-video', {
+      body: {
+        videoUrl: videoUrl.trim(),
+        event,
+        raceDistance,
+        poolLength,
+        startSeconds: parseClock(videoStart),
+        endSeconds: parseClock(videoEnd),
+        checkpointDistances,
+      },
+    })
+    setAutoAnalyzing(false)
+
+    if (error || data?.error) {
+      setMessage(data?.error || error?.message || '영상 자동 분석에 실패했습니다.')
+      return
+    }
+
+    const detectedLanes = Array.isArray(data?.lanes) ? data.lanes : []
+    if (!detectedLanes.length) {
+      setMessage('영상 자막에서 레인별 기록을 찾지 못했습니다. 영상 구간과 화질을 확인해주세요.')
+      return
+    }
+
+    setLanes((current) => current.map((lane) => {
+      const detected = detectedLanes.find((item) => Number(item.lane) === lane.lane)
+      if (!detected) return lane
+      const splits = checkpointDistances.map((distance) => {
+        const split = detected.splits?.find((item) => Number(item.distance) === distance)
+        return split?.time || ''
+      })
+      return {
+        ...lane,
+        enabled: splits.some(Boolean),
+        name: detected.name || lane.name,
+        splits,
+      }
+    }))
+    setShowInput(true)
+    const warnings = Array.isArray(data.warnings) ? data.warnings.filter(Boolean) : []
+    setMessage(
+      warnings.length
+        ? `자동 입력 완료 · 확인 필요: ${warnings.join(' / ')}`
+        : `${detectedLanes.length}개 레인의 자막 기록을 자동 입력했습니다. 오인식 여부를 확인해주세요.`,
+    )
   }
 
   const saveCompetitionResult = async () => {
@@ -550,7 +632,14 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
               <input type="checkbox" checked={isPbReference} onChange={(eventObject) => setIsPbReference(eventObject.target.checked)} />
               이 분석을 PB 기준 레이스로 지정
             </label>
-            <button type="button" onClick={saveAnalysis} disabled={saving} className="ml-auto flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            <button type="button" onClick={autoAnalyzeVideo} disabled={autoAnalyzing} className="ml-auto flex items-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/15 px-4 py-2 text-sm font-semibold text-purple-200 hover:bg-purple-500/25 disabled:opacity-50">
+              {autoAnalyzing ? <RefreshCw size={15} className="animate-spin" /> : <BrainCircuit size={15} />}
+              {autoAnalyzing ? '영상 분석 중' : '영상 자동 분석'}
+            </button>
+            <button type="button" onClick={analyzeRecords} className="flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500">
+              <Play size={15} /> 기록 분석
+            </button>
+            <button type="button" onClick={saveAnalysis} disabled={saving} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
               <Save size={15} /> {saving ? '저장 중' : '분석 저장'}
             </button>
             <button type="button" onClick={saveCompetitionResult} className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-300">
@@ -561,7 +650,7 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
         </section>
       )}
 
-      <section className="rounded-xl border border-slate-700/50 bg-[#1a1d27] p-4">
+      <section ref={resultsRef} className="scroll-mt-4 rounded-xl border border-slate-700/50 bg-[#1a1d27] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-white">레이스 리플레이</h3>

@@ -100,6 +100,7 @@ function currentSpeed(lane, elapsed, checkpointDistance) {
 }
 
 export default function RaceVideoAnalysis({ user, competitions, eventOptions, onResultSaved }) {
+  const jobStorageKey = `race-video-analysis-job-${user.id}`
   const defaultEvent = eventOptions[0] || '자유형 200m'
   const [analyses, setAnalyses] = useState([])
   const [analysisId, setAnalysisId] = useState(null)
@@ -119,6 +120,7 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
   const [isPbReference, setIsPbReference] = useState(false)
   const [saving, setSaving] = useState(false)
   const [autoAnalyzing, setAutoAnalyzing] = useState(false)
+  const [analysisJob, setAnalysisJob] = useState(null)
   const [message, setMessage] = useState('')
   const [showInput, setShowInput] = useState(true)
   const [elapsed, setElapsed] = useState(0)
@@ -133,6 +135,36 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
   const checkpointDistances = Array.from({ length: checkpointCount }, (_, index) =>
     Math.min(raceDistance, (index + 1) * checkpointDistance)
   )
+
+  const applyAutomaticResult = (result) => {
+    const detectedLanes = Array.isArray(result?.lanes) ? result.lanes : []
+    if (!detectedLanes.length) {
+      setMessage('영상 자막에서 레인별 기록을 찾지 못했습니다. 영상 구간과 화질을 확인해주세요.')
+      return
+    }
+
+    setLanes((current) => current.map((lane) => {
+      const detected = detectedLanes.find((item) => Number(item.lane) === lane.lane)
+      if (!detected) return lane
+      const splits = checkpointDistances.map((distance) => {
+        const split = detected.splits?.find((item) => Number(item.distance) === distance)
+        return split?.time || ''
+      })
+      return {
+        ...lane,
+        enabled: splits.some(Boolean),
+        name: detected.name || lane.name,
+        splits,
+      }
+    }))
+    setShowInput(true)
+    const warnings = Array.isArray(result.warnings) ? result.warnings.filter(Boolean) : []
+    setMessage(
+      warnings.length
+        ? `자동 입력 완료 · 확인 필요: ${warnings.join(' / ')}`
+        : `${detectedLanes.length}개 레인의 자막 기록을 자동 입력했습니다. 오인식 여부를 확인해주세요.`,
+    )
+  }
 
   const fetchAnalyses = async () => {
     const { data } = await supabase
@@ -157,6 +189,74 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
       active = false
     }
   }, [user.id])
+
+  useEffect(() => {
+    let active = true
+
+    const receiveJob = (job) => {
+      if (!active || !job) return
+      setAnalysisJob(job)
+      const running = job.status === 'queued' || job.status === 'processing'
+      setAutoAnalyzing(running)
+
+      if (job.status === 'queued') {
+        setMessage('분석 요청을 저장했습니다. PC에서 영상 분석 도우미를 실행하면 자동으로 시작됩니다.')
+      } else if (job.status === 'processing') {
+        setMessage(`PC에서 경기 구간을 분석하고 있습니다. ${job.progress || 0}%`)
+      } else if (job.status === 'completed') {
+        applyAutomaticResult(job.result)
+        window.localStorage.removeItem(jobStorageKey)
+      } else if (job.status === 'failed') {
+        setMessage(`영상 자동 분석 실패: ${job.error_message || 'PC 도우미의 로그를 확인해주세요.'}`)
+        window.localStorage.removeItem(jobStorageKey)
+      }
+    }
+
+    const storedJobId = window.localStorage.getItem(jobStorageKey)
+    const initialQuery = storedJobId
+      ? supabase.from('race_video_analysis_jobs').select('*').eq('id', storedJobId).maybeSingle()
+      : supabase
+        .from('race_video_analysis_jobs')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('status', ['queued', 'processing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    initialQuery.then(({ data }) => receiveJob(data))
+
+    const channel = supabase
+      .channel(`race-video-analysis-jobs-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'race_video_analysis_jobs',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => receiveJob(payload.new),
+      )
+      .subscribe()
+
+    const interval = window.setInterval(async () => {
+      if (!analysisJob?.id || !['queued', 'processing'].includes(analysisJob.status)) return
+      const { data } = await supabase
+        .from('race_video_analysis_jobs')
+        .select('*')
+        .eq('id', analysisJob.id)
+        .maybeSingle()
+      receiveJob(data)
+    }, 5000)
+
+    return () => {
+      active = false
+      window.clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
+  // checkpointDistances changes when the selected race distance changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, jobStorageKey, analysisJob?.id, analysisJob?.status, checkpointDistances.join(',')])
 
   const activeLanes = lanes.filter((lane) => lane.enabled && lane.splits.some(Boolean))
   const durationValues = activeLanes.map((lane) => laneCumulativeSeconds(lane).at(-1)).filter(Boolean)
@@ -269,6 +369,8 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
     setLanes(normalizeLanes(EMPTY_LANES, 4))
     setComparisonId('')
     setIsPbReference(false)
+    setAnalysisJob(null)
+    setAutoAnalyzing(false)
     setElapsed(0)
     setPlaying(false)
     setMessage('')
@@ -367,61 +469,37 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
     }
 
     setAutoAnalyzing(true)
-    setMessage('영상 자막을 분석하고 있습니다. 긴 영상은 1~3분 정도 걸릴 수 있습니다.')
-    const { data, error } = await supabase.functions.invoke('analyze-race-video', {
-      body: {
-        videoUrl: videoUrl.trim(),
+    setMessage('무료 PC 분석 대기열에 요청을 등록하고 있습니다.')
+    const { data, error } = await supabase
+      .from('race_video_analysis_jobs')
+      .insert({
+        user_id: user.id,
+        analysis_id: analysisId,
+        status: 'queued',
+        video_url: videoUrl.trim(),
+        video_start_seconds: parseClock(videoStart),
+        video_end_seconds: parseClock(videoEnd),
         event,
-        raceDistance,
-        poolLength,
-        startSeconds: parseClock(videoStart),
-        endSeconds: parseClock(videoEnd),
-        checkpointDistances,
-      },
-    })
-    setAutoAnalyzing(false)
-
-    if (error || data?.error) {
-      let functionMessage = data?.error || ''
-      if (!functionMessage && error?.context instanceof Response) {
-        try {
-          const errorBody = await error.context.clone().json()
-          functionMessage = errorBody?.error || ''
-        } catch {
-          functionMessage = ''
-        }
-      }
-      setMessage(functionMessage || error?.message || '영상 자동 분석에 실패했습니다.')
-      return
-    }
-
-    const detectedLanes = Array.isArray(data?.lanes) ? data.lanes : []
-    if (!detectedLanes.length) {
-      setMessage('영상 자막에서 레인별 기록을 찾지 못했습니다. 영상 구간과 화질을 확인해주세요.')
-      return
-    }
-
-    setLanes((current) => current.map((lane) => {
-      const detected = detectedLanes.find((item) => Number(item.lane) === lane.lane)
-      if (!detected) return lane
-      const splits = checkpointDistances.map((distance) => {
-        const split = detected.splits?.find((item) => Number(item.distance) === distance)
-        return split?.time || ''
+        pool_length: poolLength,
+        race_distance: raceDistance,
+        checkpoint_distances: checkpointDistances,
       })
-      return {
-        ...lane,
-        enabled: splits.some(Boolean),
-        name: detected.name || lane.name,
-        splits,
-      }
-    }))
-    setShowInput(true)
-    const warnings = Array.isArray(data.warnings) ? data.warnings.filter(Boolean) : []
-    setMessage(
-      warnings.length
-        ? `자동 입력 완료 · 확인 필요: ${warnings.join(' / ')}`
-        : `${detectedLanes.length}개 레인의 자막 기록을 자동 입력했습니다. 오인식 여부를 확인해주세요.`,
-    )
+      .select()
+      .single()
+
+    if (error) {
+      setAutoAnalyzing(false)
+      setMessage(
+        error.message.includes('race_video_analysis_jobs')
+          ? 'Supabase에서 race_video_analysis_jobs.sql을 먼저 실행해주세요.'
+          : error.message,
+      )
+      return
+    }
+
+    setAnalysisJob(data)
+    window.localStorage.setItem(jobStorageKey, data.id)
+    setMessage('분석 요청을 저장했습니다. PC에서 영상 분석 도우미를 실행하면 자동으로 시작됩니다.')
   }
 
   const saveCompetitionResult = async () => {
@@ -643,7 +721,11 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
             </label>
             <button type="button" onClick={autoAnalyzeVideo} disabled={autoAnalyzing} className="ml-auto flex items-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/15 px-4 py-2 text-sm font-semibold text-purple-200 hover:bg-purple-500/25 disabled:opacity-50">
               {autoAnalyzing ? <RefreshCw size={15} className="animate-spin" /> : <BrainCircuit size={15} />}
-              {autoAnalyzing ? '영상 분석 중' : '영상 자동 분석'}
+              {analysisJob?.status === 'queued'
+                ? 'PC 분석 대기 중'
+                : analysisJob?.status === 'processing'
+                  ? `영상 분석 ${analysisJob.progress || 0}%`
+                  : '영상 자동 분석'}
             </button>
             <button type="button" onClick={analyzeRecords} className="flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500">
               <Play size={15} /> 기록 분석
@@ -655,6 +737,14 @@ export default function RaceVideoAnalysis({ user, competitions, eventOptions, on
               <Trophy size={15} /> 시합 결과에 저장
             </button>
           </div>
+          {autoAnalyzing && (
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full rounded-full bg-purple-500 transition-[width] duration-500"
+                style={{ width: `${Math.max(4, analysisJob?.progress || 0)}%` }}
+              />
+            </div>
+          )}
           {message && <p className="mt-3 text-xs text-cyan-300">{message}</p>}
         </section>
       )}
